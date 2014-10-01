@@ -700,7 +700,7 @@ request_scheduler: org.apache.cassandra.scheduler.NoScheduler
 #      Keyspace2: 5
 
 # request_scheduler_id -- An identifier based on which to perform
-# the request scheduling. Currently the only valid option is keyspace.
+# the request scheduling. Valid options are keyspace and user.
 # request_scheduler_id: keyspace
 
 # Enable or disable inter-node encryption

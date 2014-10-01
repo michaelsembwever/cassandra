@@ -312,6 +312,7 @@ public class Config
 
     public static enum RequestSchedulerId
     {
-        keyspace
+        keyspace,
+        user
     }
 }

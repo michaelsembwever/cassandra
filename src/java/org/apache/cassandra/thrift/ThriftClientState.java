@@ -50,7 +50,10 @@ public class ThriftClientState extends ClientState
         switch(DatabaseDescriptor.getRequestSchedulerId())
         {
             case keyspace: return getRawKeyspace();
+            case user: return getUser().getName();
         }
-        return "default";
+        
+        throw new IllegalStateException(
+                "missing case for RequestSchedulerId." + DatabaseDescriptor.getRequestSchedulerId());
     }
 }

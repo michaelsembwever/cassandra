@@ -102,7 +102,7 @@ public class DatabaseDescriptor
     private static IAuthorizer authorizer = new AllowAllAuthorizer();
 
     private static IRequestScheduler requestScheduler;
-    private static RequestSchedulerId requestSchedulerId;
+    private static RequestSchedulerId requestSchedulerId = RequestSchedulerId.keyspace;
     private static RequestSchedulerOptions requestSchedulerOptions;
 
     private static long keyCacheSizeInMB;
@@ -467,14 +467,9 @@ public class DatabaseDescriptor
             requestScheduler = new NoScheduler();
         }
 
-        if (conf.request_scheduler_id == RequestSchedulerId.keyspace)
+        if (conf.request_scheduler_id != null)
         {
             requestSchedulerId = conf.request_scheduler_id;
-        }
-        else
-        {
-            // Default to Keyspace
-            requestSchedulerId = RequestSchedulerId.keyspace;
         }
 
         // if data dirs, commitlog dir, or saved caches dir are set in cassandra.yaml, use that.  Otherwise,
@@ -771,14 +766,32 @@ public class DatabaseDescriptor
         return requestScheduler;
     }
 
+    // for tests
+    protected static void setRequestScheduler(IRequestScheduler requestScheduler)
+    {
+        DatabaseDescriptor.requestScheduler = requestScheduler;
+    }
+
     public static RequestSchedulerOptions getRequestSchedulerOptions()
     {
         return requestSchedulerOptions;
     }
 
+    // for tests
+    protected static void setRequestSchedulerOptions(RequestSchedulerOptions requestSchedulerOptions)
+    {
+        DatabaseDescriptor.requestSchedulerOptions = requestSchedulerOptions;
+    }
+
     public static RequestSchedulerId getRequestSchedulerId()
     {
         return requestSchedulerId;
+    }
+
+    // for tests
+    protected static void setRequestSchedulerId(RequestSchedulerId requestSchedulerId)
+    {
+        DatabaseDescriptor.requestSchedulerId = requestSchedulerId;
     }
 
     public static int getColumnIndexSize()
