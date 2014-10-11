@@ -38,6 +38,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.hadoop.ColumnFamilySplit;
 import org.apache.cassandra.hadoop.ConfigHelper;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -50,9 +52,12 @@ import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import com.datastax.driver.core.Cluster;
 import com.datastax.driver.core.ColumnDefinitions;
 import com.datastax.driver.core.ColumnMetadata;
+import com.datastax.driver.core.KeyspaceMetadata;
 import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.Row;
 import com.datastax.driver.core.Session;
+import com.datastax.driver.core.TableMetadata;
+
 /**
  * CqlRecordReader reads the rows return from the CQL query
  * It uses CQL auto-paging.
@@ -255,11 +260,40 @@ public class CqlRecordReader extends RecordReader<Long, Row>
 
         public RowIterator()
         {
-            AbstractType type = partitioner.getTokenValidator();
-            ResultSet rs = session.execute(cqlQuery, type.compose(type.fromString(split.getStartToken())), type.compose(type.fromString(split.getEndToken())) );
-            for (ColumnMetadata meta : cluster.getMetadata().getKeyspace(quote(keyspace)).getTable(quote(cfName)).getPartitionKey())
-                partitionBoundColumns.put(meta.getName(), Boolean.TRUE);
-            rows = rs.iterator();
+            final Token.TokenFactory factory = partitioner.getTokenFactory();
+            final AbstractType type = partitioner.getTokenValidator();
+            rows = new Iterator<Row>()
+            {
+                protected final Iterator<Range<Token>> tokenRanges = split.getTokenRanges().iterator();
+                protected Iterator<Row> rangeRows = Collections.emptyIterator();
+                public boolean hasNext()
+                {
+                    while (!rangeRows.hasNext() && tokenRanges.hasNext())
+                    {
+                        Range<Token> range = tokenRanges.next();
+                        Object startToken = type.compose(factory.toByteArray(range.left));
+                        Object endToken = type.compose(factory.toByteArray(range.right));
+                        ResultSet rs = session.execute(cqlQuery, startToken, endToken);
+                        if (partitionBoundColumns.isEmpty())
+                        {
+                            KeyspaceMetadata keyspaceMeta = cluster.getMetadata().getKeyspace(quote(keyspace));
+                            TableMetadata tableMeta = keyspaceMeta.getTable(quote(cfName));
+                            for (ColumnMetadata meta : tableMeta.getPartitionKey())
+                                partitionBoundColumns.put(meta.getName(), Boolean.TRUE);
+                        }
+                        rangeRows = rs.iterator();
+                    }
+                    return rangeRows.hasNext();
+                }
+                public Row next()
+                {
+                    return rangeRows.next();
+                }
+                public void remove()
+                {
+                    throw new UnsupportedOperationException("remove");
+                }
+            };
         }
 
         protected Pair<Long, Row> computeNext()
