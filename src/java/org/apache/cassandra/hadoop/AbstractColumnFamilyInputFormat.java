@@ -132,11 +132,11 @@ public abstract class AbstractColumnFamilyInputFormat<K, Y> extends InputFormat<
 
         // cannonical ranges, split into pieces, fetching the splits in parallel
         ExecutorService executor = new ThreadPoolExecutor(0, 128, 60L, TimeUnit.SECONDS, new LinkedBlockingQueue<Runnable>());
-        List<InputSplit> splits = new ArrayList<InputSplit>();
+        List<ColumnFamilySplit> splits = new ArrayList<>();
 
         try
         {
-            List<Future<List<InputSplit>>> splitfutures = new ArrayList<Future<List<InputSplit>>>();
+            List<Future<List<ColumnFamilySplit>>> splitfutures = new ArrayList<>();
             KeyRange jobKeyRange = ConfigHelper.getInputKeyRange(conf);
             Range<Token> jobRange = null;
             if (jobKeyRange != null)
@@ -192,7 +192,7 @@ public abstract class AbstractColumnFamilyInputFormat<K, Y> extends InputFormat<
             }
 
             // wait until we have all the results back
-            for (Future<List<InputSplit>> futureInputSplits : splitfutures)
+            for (Future<List<ColumnFamilySplit>> futureInputSplits : splitfutures)
             {
                 try
                 {
@@ -210,15 +210,85 @@ public abstract class AbstractColumnFamilyInputFormat<K, Y> extends InputFormat<
         }
 
         assert splits.size() > 0;
-        Collections.shuffle(splits, new Random(System.nanoTime()));
-        return splits;
+        List<InputSplit> result = rejoinAdjacentSplits(splits, conf);
+        Collections.shuffle(result, new Random(System.nanoTime()));
+        return result;
+    }
+
+    private List<InputSplit> rejoinAdjacentSplits(List<ColumnFamilySplit> splits, Configuration conf)
+    {
+        List<InputSplit> result = new ArrayList<>();
+        Map<Set<String>,TreeSet<ColumnFamilySplit>> splitsPerDataNodes = new HashMap<>();
+        SplitComparator splitComparator = new SplitComparator();
+        int splitsize = ConfigHelper.getInputSplitSize(conf);
+        for (ColumnFamilySplit split : splits)
+        {
+            String[] locations = split.getLocations();
+            Set<String> dataNodes = Collections.unmodifiableSet(new TreeSet<>(Arrays.asList(locations)));
+            if (!splitsPerDataNodes.containsKey(dataNodes))
+            {
+                splitsPerDataNodes.put(dataNodes, new TreeSet<>(splitComparator));
+            }
+            splitsPerDataNodes.get(dataNodes).add(split);
+        }
+        for (TreeSet<ColumnFamilySplit> set : splitsPerDataNodes.values())
+        {
+            List<ColumnFamilySplit> list = new ArrayList<>();
+            Iterator<ColumnFamilySplit> it = set.iterator();
+            while (it.hasNext())
+            {
+                ColumnFamilySplit next = it.next();
+                if (list.isEmpty())
+                {
+                    list.add(next);
+                }
+                else
+                {
+                    ColumnFamilySplit prev = list.get(list.size()-1);
+                    assert Arrays.asList(prev.getLocations()).equals(Arrays.asList(next.getLocations()));
+
+                    assert 0 > partitioner.getTokenFactory().fromString(prev.getStartToken())
+                            .compareTo(partitioner.getTokenFactory().fromString(next.getStartToken()));
+
+                    //assert 0 > partitioner.getTokenFactory().fromString(prev.getEndToken())
+                    //        .compareTo(partitioner.getTokenFactory().fromString(next.getEndToken()));
+
+                    long joinedLength = prev.getLength() + next.getLength();
+
+                    if (partitioner.getTokenFactory().fromString(prev.getEndToken())
+                            .equals(partitioner.getTokenFactory().fromString(next.getStartToken()))
+                            && splitsize >= joinedLength)
+                    {
+                        ColumnFamilySplit joined = new ColumnFamilySplit(
+                                prev.getStartToken(), next.getEndToken(), joinedLength, prev.getLocations());
+
+                        list.set(list.size()-1, joined);
+                    }
+                    else
+                    {
+                        list.add(next);
+                    }
+                }
+            }
+            result.addAll(list);
+        }
+        return result;
+    }
+
+    class SplitComparator implements Comparator<ColumnFamilySplit>
+    {
+        public int compare(ColumnFamilySplit o1, ColumnFamilySplit o2)
+        {
+            return partitioner.getTokenFactory().fromString(o1.getStartToken())
+                    .compareTo(partitioner.getTokenFactory().fromString(o2.getStartToken()));
+        }
     }
 
     /**
      * Gets a token range and splits it up according to the suggested
      * size into input splits that Hadoop can use.
      */
-    class SplitCallable implements Callable<List<InputSplit>>
+    class SplitCallable implements Callable<List<ColumnFamilySplit>>
     {
 
         private final TokenRange range;
@@ -230,9 +300,9 @@ public abstract class AbstractColumnFamilyInputFormat<K, Y> extends InputFormat<
             this.conf = conf;
         }
 
-        public List<InputSplit> call() throws Exception
+        public List<ColumnFamilySplit> call() throws Exception
         {
-            ArrayList<InputSplit> splits = new ArrayList<InputSplit>();
+            ArrayList<ColumnFamilySplit> splits = new ArrayList<>();
             List<CfSplit> subSplits = getSubSplits(keyspace, cfName, range, conf);
             assert range.rpc_endpoints.size() == range.endpoints.size() : "rpc_endpoints size must match endpoints size";
             // turn the sub-ranges into InputSplits
