@@ -37,6 +37,8 @@ import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.marshal.TypeParser;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -216,6 +218,7 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
 
     private abstract class RowIterator extends AbstractIterator<Pair<ByteBuffer, SortedMap<ByteBuffer, Cell>>>
     {
+        protected final Iterator<Range<Token>> tokenRanges = split.getTokenRanges().iterator();
         protected List<KeySlice> rows;
         protected int totalRead = 0;
         protected final boolean isSuper;
@@ -331,6 +334,7 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
     private class StaticRowIterator extends RowIterator
     {
         protected int i = 0;
+        private Range<Token> range = tokenRanges.next();
 
         private void maybeInit()
         {
@@ -338,26 +342,25 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
             if (rows != null && i < rows.size())
                 return;
 
-            String startToken;
-            if (totalRead == 0)
-            {
-                // first request
-                startToken = split.getStartToken();
-            }
-            else
+            String startToken = partitioner.getTokenFactory().toString(range.left);
+            String endToken = partitioner.getTokenFactory().toString(range.right);
+            if (rows != null && totalRead != 0)
             {
                 startToken = partitioner.getTokenFactory().toString(partitioner.getToken(Iterables.getLast(rows).key));
-                if (startToken.equals(split.getEndToken()))
+                if (startToken.equals(endToken))
                 {
-                    // reached end of the split
                     rows = null;
-                    return;
+                    if (tokenRanges.hasNext())
+                        range = tokenRanges.next();
+                    else
+                        // reached end of the split
+                        return;
                 }
             }
 
             KeyRange keyRange = new KeyRange(batchSize)
                                 .setStart_token(startToken)
-                                .setEnd_token(split.getEndToken())
+                                .setEnd_token(endToken)
                                 .setRow_filter(filter);
             try
             {
@@ -367,6 +370,11 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
                 if (rows.isEmpty())
                 {
                     rows = null;
+                    if (tokenRanges.hasNext())
+                    {
+                        range = tokenRanges.next();
+                        maybeInit();
+                    }
                     return;
                 }
 
@@ -425,6 +433,7 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
 
     private class WideRowIterator extends RowIterator
     {
+        private Range<Token> range = tokenRanges.next();
         private PeekingIterator<Pair<ByteBuffer, SortedMap<ByteBuffer, Cell>>> wideColumns;
         private ByteBuffer lastColumn = ByteBufferUtil.EMPTY_BYTE_BUFFER;
         private ByteBuffer lastCountedKey = ByteBufferUtil.EMPTY_BYTE_BUFFER;
@@ -434,13 +443,13 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
             if (wideColumns != null && wideColumns.hasNext())
                 return;
 
+            Token.TokenFactory factory = partitioner.getTokenFactory();
             KeyRange keyRange;
-            if (totalRead == 0)
+            if (rows == null || totalRead == 0)
             {
-                String startToken = split.getStartToken();
                 keyRange = new KeyRange(batchSize)
-                          .setStart_token(startToken)
-                          .setEnd_token(split.getEndToken())
+                          .setStart_token(factory.toString(range.left))
+                          .setEnd_token(factory.toString(range.right))
                           .setRow_filter(filter);
             }
             else
@@ -449,7 +458,7 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
                 logger.debug("Starting with last-seen row {}", lastRow.key);
                 keyRange = new KeyRange(batchSize)
                           .setStart_key(lastRow.key)
-                          .setEnd_token(split.getEndToken())
+                          .setEnd_token(factory.toString(range.right))
                           .setRow_filter(filter);
             }
 
@@ -466,7 +475,14 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
                 if (wideColumns.hasNext() && wideColumns.peek().right.keySet().iterator().next().equals(lastColumn))
                     wideColumns.next();
                 if (!wideColumns.hasNext())
+                {
                     rows = null;
+                    if (tokenRanges.hasNext())
+                    {
+                        range = tokenRanges.next();
+                        maybeInit();
+                    }
+                }
             }
             catch (Exception e)
             {
