@@ -21,6 +21,8 @@ import java.io.*;
 import java.lang.management.MemoryUsage;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.text.DecimalFormat;
 import java.text.SimpleDateFormat;
 import java.util.*;
@@ -248,7 +250,7 @@ public class NodeTool
             try (NodeProbe probe = connect())
             {
                 execute(probe);
-            } 
+            }
             catch (IOException e)
             {
                 throw new RuntimeException("Error while closing JMX connection", e);
@@ -494,20 +496,20 @@ public class NodeTool
             try
             {
                 ownerships = probe.effectiveOwnership(keyspace);
-            } 
+            }
             catch (IllegalStateException ex)
             {
                 ownerships = probe.getOwnership();
                 errors.append("Note: " + ex.getMessage() + "%n");
                 showEffectiveOwnership = false;
-            } 
+            }
             catch (IllegalArgumentException ex)
             {
                 System.out.printf("%nError: " + ex.getMessage() + "%n");
                 return;
             }
 
-            
+
             System.out.println();
             for (Entry<String, SetHostStat> entry : getOwnershipByDc(probe, resolveIp, tokensToEndpoints, ownerships).entrySet())
                 printDc(probe, format, entry.getKey(), endpointsToTokens, entry.getValue(),showEffectiveOwnership);
@@ -1669,17 +1671,18 @@ public class NodeTool
         }
     }
 
-    @Command(name = "refresh", description = "Load newly placed SSTables to the system without restart")
+    @Command(name = "refresh", description = "Load SSTables from a directory to the system without restart")
     public static class Refresh extends NodeToolCmd
     {
-        @Arguments(usage = "<keyspace> <table>", description = "The keyspace and table name")
+        @Arguments(usage = "<keyspace> <table> <directory>", description = "The keyspace and table name, and the directory where they are found")
         private List<String> args = new ArrayList<>();
 
         @Override
         public void execute(NodeProbe probe)
         {
-            checkArgument(args.size() == 2, "refresh requires ks and cf args");
-            probe.loadNewSSTables(args.get(0), args.get(1));
+            checkArgument(args.size() == 3, "refresh requires ks, cf, and dir args");
+            checkArgument(Files.isDirectory(Paths.get(args.get(2))), "dir must exist, and be a directory");
+            probe.loadNewSSTables(args.get(0), args.get(1), args.get(2));
         }
     }
 
@@ -2018,7 +2021,7 @@ public class NodeTool
             unreachableNodes = probe.getUnreachableNodes();
             hostIDMap = probe.getHostIdMap();
             epSnitchInfo = probe.getEndpointSnitchInfoProxy();
-            
+
             StringBuffer errors = new StringBuffer();
 
             Map<InetAddress, Float> ownerships;
@@ -2071,9 +2074,9 @@ public class NodeTool
                     printNode(endpoint.getHostAddress(), owns, tokens, hasEffectiveOwns, isTokenPerNode);
                 }
             }
-            
+
             System.out.printf("%n" + errors.toString());
-            
+
         }
 
         private void findMaxAddressLength(Map<String, SetHostStat> dcs)
@@ -2159,7 +2162,7 @@ public class NodeTool
         }
     }
 
-    private static Map<String, SetHostStat> getOwnershipByDc(NodeProbe probe, boolean resolveIp, 
+    private static Map<String, SetHostStat> getOwnershipByDc(NodeProbe probe, boolean resolveIp,
                                                              Map<String, String> tokenToEndpoint,
                                                              Map<InetAddress, Float> ownerships)
     {
@@ -2522,7 +2525,7 @@ public class NodeTool
                 probe.truncateHints(endpoint);
         }
     }
-    
+
     @Command(name = "setlogginglevel", description = "Set the log level threshold for a given class. If both class and level are empty/null, it will reset to the initial configuration")
     public static class SetLoggingLevel extends NodeToolCmd
     {
@@ -2537,7 +2540,7 @@ public class NodeTool
             probe.setLoggingLevel(classQualifier, level);
         }
     }
-    
+
     @Command(name = "getlogginglevels", description = "Get the runtime logging levels")
     public static class GetLoggingLevels extends NodeToolCmd
     {

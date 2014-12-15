@@ -68,7 +68,7 @@ public class SSTableSimpleWriterTest
         {
 
             int k = 0;
-    
+
             // Adding a few rows first
             for (; k < 10; ++k)
             {
@@ -77,8 +77,8 @@ public class SSTableSimpleWriterTest
                 writer.addColumn(bytes(2), bytes("v"), 0);
                 writer.addColumn(bytes(3), bytes("v"), 0);
             }
-    
-    
+
+
             // Testing multiple opening of the same row
             // We'll write column 0, 5, 10, .., on the first row, then 1, 6, 11, ... on the second one, etc.
             for (int i = 0; i < INC; ++i)
@@ -90,7 +90,7 @@ public class SSTableSimpleWriterTest
                 }
             }
             k++;
-    
+
             // Adding a few more rows
             for (; k < 20; ++k)
             {
@@ -103,7 +103,7 @@ public class SSTableSimpleWriterTest
 
         // Now add that newly created files to the column family
         ColumnFamilyStore cfs = t.getColumnFamilyStore(cfname);
-        cfs.loadNewSSTables();
+        cfs.reloadSSTables();
 
         // Check we get expected results
         ColumnFamily cf = Util.getColumnFamily(t, Util.dk("Key10"), cfname);

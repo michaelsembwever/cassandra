@@ -32,7 +32,6 @@ import java.util.concurrent.TimeoutException;
 import javax.management.NotificationEmitter;
 import javax.management.openmbean.TabularData;
 
-import org.apache.cassandra.db.compaction.CompactionManager;
 
 public interface StorageServiceMBean extends NotificationEmitter
 {
@@ -333,11 +332,11 @@ public interface StorageServiceMBean extends NotificationEmitter
      * If level cannot be parsed, then the level will be defaulted to DEBUG<br>
      * <br>
      * The logback configuration should have < jmxConfigurator /> set
-     * 
+     *
      * @param classQualifier The logger's classQualifer
      * @param level The log level
-     * @throws Exception 
-     * 
+     * @throws Exception
+     *
      *  @see ch.qos.logback.classic.Level#toLevel(String)
      */
     public void setLoggingLevel(String classQualifier, String level) throws Exception;
@@ -467,8 +466,9 @@ public interface StorageServiceMBean extends NotificationEmitter
      *
      * @param ksName The parent keyspace name
      * @param cfName The ColumnFamily name where SSTables belong
+     * @param directory the directory to look for new sstables in
      */
-    public void loadNewSSTables(String ksName, String cfName);
+    public void loadNewSSTables(String ksName, String cfName, String directory);
 
     /**
      * Return a List of Tokens representing a sample of keys across all ColumnFamilyStores.

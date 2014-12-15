@@ -255,7 +255,7 @@ public class ScrubTest
         Scrubber scrubber = new Scrubber(cfs, sstable, false, true);
         scrubber.scrub();
 
-        cfs.loadNewSSTables();
+        cfs.reloadSSTables();
         List<Row> rows = cfs.getRangeSlice(Util.range("", ""), null, new IdentityQueryFilter(), 1000);
         assert isRowOrdered(rows) : "Scrub failed: " + rows;
         assert rows.size() == 6 : "Got " + rows.size();

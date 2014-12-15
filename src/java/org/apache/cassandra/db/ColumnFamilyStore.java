@@ -649,27 +649,46 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      *
      * @param ksName The keyspace name
      * @param cfName The columnFamily name
+     * @param directory the directory to look for new sstables in
      */
-    public static synchronized void loadNewSSTables(String ksName, String cfName)
+    public static synchronized void loadNewSSTables(String ksName, String cfName, String directory)
     {
         /** ks/cf existence checks will be done by open and getCFS methods for us */
         Keyspace keyspace = Keyspace.open(ksName);
-        keyspace.getColumnFamilyStore(cfName).loadNewSSTables();
+        keyspace.getColumnFamilyStore(cfName).loadNewSSTables(directory);
     }
 
     /**
      * #{@inheritDoc}
      */
-    public synchronized void loadNewSSTables()
+    public synchronized void loadNewSSTables(String directory)
     {
         logger.info("Loading new SSTables for {}/{}...", keyspace.getName(), name);
 
-        Set<Descriptor> currentDescriptors = new HashSet<Descriptor>();
+        if (Arrays.asList(DatabaseDescriptor.getAllDataFileLocations()).contains(directory))
+        {
+            throw new RuntimeException(String.format("Can't load sstables from existing data directory: %s", directory));
+        }
+
+        loadNewSSTables(new Directories(metadata, new Directories.DataDirectory(new File(directory))));
+    }
+
+    /**
+     * only for tests
+     */
+    public synchronized void reloadSSTables()
+    {
+        logger.info("Reloading new SSTables for {}/{}...", keyspace.getName(), name);
+        loadNewSSTables(directories);
+    }
+
+    private void loadNewSSTables(Directories loadDirectories)
+    {
+        Set<Descriptor> currentDescriptors = new HashSet<>();
         for (SSTableReader sstable : data.getView().sstables)
             currentDescriptors.add(sstable.descriptor);
         Set<SSTableReader> newSSTables = new HashSet<>();
-
-        Directories.SSTableLister lister = directories.sstableLister().skipTemporary(true);
+        Directories.SSTableLister lister = loadDirectories.sstableLister().skipTemporary(true);
         for (Map.Entry<Descriptor, Set<Component>> entry : lister.list().entrySet())
         {
             Descriptor descriptor = entry.getKey();
@@ -684,47 +703,41 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                         descriptor.getFormat().getLatestVersion(),
                         descriptor));
 
-            // force foreign sstables to level 0
             try
             {
+                // force foreign sstables to level 0
                 if (new File(descriptor.filenameFor(Component.STATS)).exists())
                     descriptor.getMetadataSerializer().mutateLevel(descriptor, 0);
+
+                // Increment the generation until we find a filename that doesn't exist. This is needed because the new
+                // SSTables that are being loaded might already use these generation numbers.
+                Descriptor newDescriptor;
+                do
+                {
+                    try (FileInputStream fis = new FileInputStream(new File(descriptor.filenameFor(Component.DATA))))
+                    {
+                        newDescriptor = new Descriptor(descriptor.version,
+                                                           directories.getWriteableLocationAsFile(fis.getChannel().size()),
+                                                           descriptor.ksname,
+                                                           descriptor.cfname,
+                                                           fileIndexGenerator.incrementAndGet(),
+                                                           Descriptor.Type.FINAL,
+                                                           descriptor.formatType);
+                    }
+
+                    assert loadDirectories == directories || !new File(newDescriptor.filenameFor(Component.DATA)).exists();
+                }
+                while (new File(newDescriptor.filenameFor(Component.DATA)).exists());
+
+                logger.info("Renaming new SSTable {} to {}", descriptor, newDescriptor);
+                SSTableWriter.rename(descriptor, newDescriptor, entry.getValue());
+
+                newSSTables.add(SSTableReader.open(newDescriptor, entry.getValue(), metadata, partitioner));
             }
             catch (IOException e)
             {
                 SSTableReader.logOpenException(entry.getKey(), e);
-                continue;
             }
-
-            // Increment the generation until we find a filename that doesn't exist. This is needed because the new
-            // SSTables that are being loaded might already use these generation numbers.
-            Descriptor newDescriptor;
-            do
-            {
-                newDescriptor = new Descriptor(descriptor.version,
-                                               descriptor.directory,
-                                               descriptor.ksname,
-                                               descriptor.cfname,
-                                               fileIndexGenerator.incrementAndGet(),
-                                               Descriptor.Type.FINAL,
-                                               descriptor.formatType);
-            }
-            while (new File(newDescriptor.filenameFor(Component.DATA)).exists());
-
-            logger.info("Renaming new SSTable {} to {}", descriptor, newDescriptor);
-            SSTableWriter.rename(descriptor, newDescriptor, entry.getValue());
-
-            SSTableReader reader;
-            try
-            {
-                reader = SSTableReader.open(newDescriptor, entry.getValue(), metadata, partitioner);
-            }
-            catch (IOException e)
-            {
-                SSTableReader.logOpenException(entry.getKey(), e);
-                continue;
-            }
-            newSSTables.add(reader);
         }
 
         if (newSSTables.isEmpty())
@@ -2202,7 +2215,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         {
             if (!manifestFile.getParentFile().exists())
                 manifestFile.getParentFile().mkdirs();
-            
+
             try (PrintStream out = new PrintStream(manifestFile))
             {
                 final JSONObject manifestJSON = new JSONObject();

@@ -43,6 +43,7 @@ import java.util.concurrent.TimeUnit;
 import com.google.common.base.Function;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
+import java.nio.file.Files;
 import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
@@ -560,7 +561,7 @@ public class ColumnFamilyStoreTest
         cfs.truncateBlocking();
 
         ByteBuffer rowKey = ByteBufferUtil.bytes("k1");
-        CellName colName = cellname("birthdate"); 
+        CellName colName = cellname("birthdate");
         ByteBuffer val1 = ByteBufferUtil.bytes(1L);
         ByteBuffer val2 = ByteBufferUtil.bytes(2L);
 
@@ -624,7 +625,7 @@ public class ColumnFamilyStoreTest
 
         ByteBuffer rowKey = ByteBufferUtil.bytes("k1");
         ByteBuffer clusterKey = ByteBufferUtil.bytes("ck1");
-        ByteBuffer colName = ByteBufferUtil.bytes("col1"); 
+        ByteBuffer colName = ByteBufferUtil.bytes("col1");
 
         CellNameType baseComparator = cfs.getComparator();
         CellName compositeName = baseComparator.makeCellName(clusterKey, colName);
@@ -1112,7 +1113,7 @@ public class ColumnFamilyStoreTest
         assertEquals(0, cfs.getSSTables().size());
 
         new File(ssTables.iterator().next().descriptor.filenameFor(Component.STATS)).delete();
-        cfs.loadNewSSTables();
+        cfs.reloadSSTables();
 
         // Add another cell with a lower timestamp
         putColsStandard(cfs, key, new BufferCell(cname, ByteBufferUtil.bytes("b"), 1));
@@ -1933,7 +1934,7 @@ public class ColumnFamilyStoreTest
         {
             // avoid duplicate hardlinks to incremental backups
             DatabaseDescriptor.setIncrementalBackupsEnabled(false);
-            cfs.loadNewSSTables();
+            cfs.reloadSSTables();
         }
         finally
         {
@@ -1943,6 +1944,99 @@ public class ColumnFamilyStoreTest
         assertEquals(2, cfs.getSSTables().size());
         generations = new HashSet<>();
         for (Descriptor descriptor : dir.sstableLister().list().keySet())
+            generations.add(descriptor.generation);
+
+        // normally they would get renamed to generations 1 and 2, but since those filenames already exist,
+        // they get skipped and we end up with generations 3 and 4
+        assertEquals(2, generations.size());
+        assertTrue(generations.contains(3));
+        assertTrue(generations.contains(4));
+    }
+
+    @Test
+    public void testLoadNewSSTablesFromNewDirectory() throws Throwable
+    {
+        String ks = KEYSPACE1;
+        String cf = CF_STANDARD1;
+        ColumnFamilyStore cfs = Keyspace.open(ks).getColumnFamilyStore(cf);
+        cfs.truncateBlocking();
+        SSTableDeletingTask.waitForDeletions();
+
+        final CFMetaData cfmeta = Schema.instance.getCFMetaData(ks, cf);
+        Directories origDir = new Directories(cfs.metadata);
+
+        // clear old SSTables (probably left by CFS.clearUnsafe() calls in other tests)
+        for (Map.Entry<Descriptor, Set<Component>> entry : origDir.sstableLister().list().entrySet())
+        {
+            for (Component component : entry.getValue())
+            {
+                FileUtils.delete(entry.getKey().filenameFor(component));
+            }
+        }
+
+        // sanity check
+        int existingSSTables = origDir.sstableLister().list().keySet().size();
+        assert existingSSTables == 0 : String.format("%d SSTables unexpectedly exist", existingSSTables);
+
+        ByteBuffer key = bytes("key");
+
+        File directory = Files.createTempDirectory("ColumnFamilyStoreTest.testLoadNewSSTablesFromNewDirectory").toFile();
+
+        Directories loadDir = new Directories(cfmeta, new Directories.DataDirectory(directory));
+
+        SSTableSimpleWriter writer = new SSTableSimpleWriter(loadDir.getDirectoryForNewSSTables(),
+                                                             cfmeta,
+                                                             StorageService.getPartitioner())
+        {
+            @Override
+            protected SSTableWriter getWriter()
+            {
+                // hack for reset generation
+                generation.set(0);
+                return super.getWriter();
+            }
+        };
+        writer.newRow(key);
+        writer.addColumn(bytes("col"), bytes("val"), 1);
+        writer.close();
+
+        writer = new SSTableSimpleWriter(loadDir.getDirectoryForNewSSTables(),
+                                         cfmeta,
+                                         StorageService.getPartitioner());
+
+        writer.newRow(key);
+        writer.addColumn(bytes("col"), bytes("val"), 1);
+        writer.close();
+
+        Set<Integer> generations = new HashSet<>();
+        for (Descriptor descriptor : loadDir.sstableLister().list().keySet())
+            generations.add(descriptor.generation);
+
+        // we should have two generations: [1, 2]
+        assertEquals(2, generations.size());
+        assertTrue(generations.contains(1));
+        assertTrue(generations.contains(2));
+
+        assertEquals(0, cfs.getSSTables().size());
+
+        // start the generation counter at 1 again (other tests have incremented it already)
+        cfs.resetFileIndexGenerator();
+
+        boolean incrementalBackupsEnabled = DatabaseDescriptor.isIncrementalBackupsEnabled();
+        try
+        {
+            // avoid duplicate hardlinks to incremental backups
+            DatabaseDescriptor.setIncrementalBackupsEnabled(false);
+            cfs.loadNewSSTables(directory.getPath());
+        }
+        finally
+        {
+            DatabaseDescriptor.setIncrementalBackupsEnabled(incrementalBackupsEnabled);
+        }
+
+        assertEquals(2, cfs.getSSTables().size());
+        generations = new HashSet<>();
+        for (Descriptor descriptor : origDir.sstableLister().list().keySet())
             generations.add(descriptor.generation);
 
         // normally they would get renamed to generations 1 and 2, but since those filenames already exist,

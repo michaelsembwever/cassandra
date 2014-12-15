@@ -48,7 +48,6 @@ import org.apache.cassandra.io.FSError;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.sstable.*;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
 
@@ -177,6 +176,32 @@ public class Directories
      */
     public Directories(CFMetaData metadata)
     {
+        this(metadata, dataDirectories);
+
+        for (File dir : dataPaths)
+        {
+            try
+            {
+                FileUtils.createDirectory(dir);
+            }
+            catch (FSError e)
+            {
+                // don't just let the default exception handler do this, we need the create loop to continue
+                logger.error("Failed to create {} directory", dir);
+                FileUtils.handleFSError(e);
+            }
+        }
+    }
+
+    /**
+     * Create Directories of given ColumnFamily, off custom dataDirectories.
+     * SSTable directories are created under data_directories defined in cassandra.yaml if not exist at this time.
+     *
+     * @param metadata metadata of ColumnFamily
+     * @param dataDirectories custom dataDirectories to look for sstables in
+     */
+    Directories(CFMetaData metadata, DataDirectory... dataDirectories)
+    {
         this.metadata = metadata;
 
         String cfId = ByteBufferUtil.bytesToHex(ByteBufferUtil.bytes(metadata.cfId));
@@ -211,20 +236,6 @@ public class Directories
             // use 2.1-style path names
             for (int i = 0; i < dataDirectories.length; ++i)
                 dataPaths[i] = new File(dataDirectories[i].location, join(metadata.ksName, directoryName));
-        }
-
-        for (File dir : dataPaths)
-        {
-            try
-            {
-                FileUtils.createDirectory(dir);
-            }
-            catch (FSError e)
-            {
-                // don't just let the default exception handler do this, we need the create loop to continue
-                logger.error("Failed to create {} directory", dir);
-                FileUtils.handleFSError(e);
-            }
         }
     }
 
@@ -633,7 +644,7 @@ public class Directories
         }
         throw new RuntimeException("Snapshot " + snapshotName + " doesn't exist");
     }
-    
+
     public long trueSnapshotsSize()
     {
         long result = 0L;
@@ -646,7 +657,7 @@ public class Directories
     {
         if (!input.isDirectory())
             return 0;
-        
+
         TrueFilesSizeVisitor visitor = new TrueFilesSizeVisitor();
         try
         {
@@ -656,7 +667,7 @@ public class Directories
         {
             logger.error("Could not calculate the size of {}. {}", input, e);
         }
-    
+
         return visitor.getAllocatedSize();
     }
 
@@ -724,7 +735,7 @@ public class Directories
         for (int i = 0; i < locations.length; ++i)
             dataDirectories[i] = new DataDirectory(new File(locations[i]));
     }
-    
+
     private class TrueFilesSizeVisitor extends SimpleFileVisitor<Path>
     {
         private final AtomicLong size = new AtomicLong(0);
@@ -763,11 +774,11 @@ public class Directories
         }
 
         @Override
-        public FileVisitResult visitFileFailed(Path file, IOException exc) throws IOException 
+        public FileVisitResult visitFileFailed(Path file, IOException exc) throws IOException
         {
             return FileVisitResult.CONTINUE;
         }
-        
+
         public long getAllocatedSize()
         {
             return size.get();
