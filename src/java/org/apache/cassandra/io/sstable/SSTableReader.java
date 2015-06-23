@@ -447,10 +447,10 @@ public class SSTableReader extends SSTable implements SelfRefCounted<SSTableRead
     {
         // Minimum components without which we can't do anything
         assert components.contains(Component.DATA) : "Data component is missing for sstable" + descriptor;
-        assert components.contains(Component.PRIMARY_INDEX) : "Primary index component is missing for sstable " + descriptor;
+        assert !validate || components.contains(Component.PRIMARY_INDEX) : "Primary index component is missing for sstable " + descriptor;
 
         Map<MetadataType, MetadataComponent> sstableMetadata = descriptor.getMetadataSerializer().deserialize(descriptor,
-                                                                                                               EnumSet.of(MetadataType.VALIDATION, MetadataType.STATS));
+                                                                                                              EnumSet.of(MetadataType.VALIDATION, MetadataType.STATS));
         ValidationMetadata validationMetadata = (ValidationMetadata) sstableMetadata.get(MetadataType.VALIDATION);
         StatsMetadata statsMetadata = (StatsMetadata) sstableMetadata.get(MetadataType.STATS);
 
@@ -635,11 +635,6 @@ public class SSTableReader extends SSTable implements SelfRefCounted<SSTableRead
         return dfile.path;
     }
 
-    public String getIndexFilename()
-    {
-        return ifile.path;
-    }
-
     public void setTrackedBy(DataTracker tracker)
     {
         tidy.type.deletingTask.setTracker(tracker);
@@ -656,6 +651,12 @@ public class SSTableReader extends SSTable implements SelfRefCounted<SSTableRead
             // bf is disabled.
             load(false, true);
             bf = FilterFactory.AlwaysPresent;
+        }
+        else if (!components.contains(Component.PRIMARY_INDEX))
+        {
+            // avoid any reading of the missing primary index component.
+            // this should only happen for standalone tools
+            load(false, false);
         }
         else if (!components.contains(Component.FILTER) || validation == null)
         {
@@ -714,12 +715,14 @@ public class SSTableReader extends SSTable implements SelfRefCounted<SSTableRead
             builtSummary = true;
         }
 
-        ifile = ibuilder.complete(descriptor.filenameFor(Component.PRIMARY_INDEX));
+        if (components.contains(Component.PRIMARY_INDEX))
+            ifile = ibuilder.complete(descriptor.filenameFor(Component.PRIMARY_INDEX));
+
         dfile = dbuilder.complete(descriptor.filenameFor(Component.DATA));
 
         // Check for an index summary that was downsampled even though the serialization format doesn't support
         // that.  If it was downsampled, rebuild it.  See CASSANDRA-8993 for details.
-        if (!descriptor.version.hasSamplingLevel && !builtSummary && !validateSummarySamplingLevel())
+        if (!descriptor.version.hasSamplingLevel && !builtSummary && !validateSummarySamplingLevel() && ifile != null)
         {
             indexSummary.close();
             ifile.close();
@@ -753,6 +756,9 @@ public class SSTableReader extends SSTable implements SelfRefCounted<SSTableRead
      */
     private void buildSummary(boolean recreateBloomFilter, SegmentedFile.Builder ibuilder, SegmentedFile.Builder dbuilder, boolean summaryLoaded, int samplingLevel) throws IOException
     {
+         if (!components.contains(Component.PRIMARY_INDEX))
+             return;
+
         // we read the positions in a BRAF so we don't have to worry about an entry spanning a mmap boundary.
         RandomAccessReader primaryIndex = RandomAccessReader.open(new File(descriptor.filenameFor(Component.PRIMARY_INDEX)));
 
@@ -863,6 +869,9 @@ public class SSTableReader extends SSTable implements SelfRefCounted<SSTableRead
         // downsampling.  Downsampling can drop any of the first BASE_SAMPLING_LEVEL entries (repeating that drop pattern
         // for the remainder of the summary).  Unfortunately, the first entry to be dropped is the entry at
         // index (BASE_SAMPLING_LEVEL - 1), so we need to check a full set of BASE_SAMPLING_LEVEL entries.
+        if (ifile == null)
+            return false;
+
         Iterator<FileDataInput> segments = ifile.iterator(0);
         int i = 0;
         int summaryEntriesChecked = 0;
@@ -986,7 +995,7 @@ public class SSTableReader extends SSTable implements SelfRefCounted<SSTableRead
                                                  components,
                                                  metadata,
                                                  partitioner,
-                                                 ifile.sharedCopy(),
+                                                 ifile != null ? ifile.sharedCopy() : null,
                                                  dfile.sharedCopy(),
                                                  newSummary,
                                                  bf.sharedCopy(),
@@ -1016,7 +1025,8 @@ public class SSTableReader extends SSTable implements SelfRefCounted<SSTableRead
                     public void run()
                     {
                         dfile.dropPageCache(dataStart);
-                        ifile.dropPageCache(indexStart);
+                        if (ifile != null)
+                            ifile.dropPageCache(indexStart);
                         if (runOnClose != null)
                             runOnClose.run();
                     }
@@ -1037,7 +1047,8 @@ public class SSTableReader extends SSTable implements SelfRefCounted<SSTableRead
                 public void run()
                 {
                     dfile.dropPageCache(0);
-                    ifile.dropPageCache(0);
+                    if (ifile != null)
+                        ifile.dropPageCache(0);
                     runOnClose.run();
                 }
             };
@@ -1564,6 +1575,9 @@ public class SSTableReader extends SSTable implements SelfRefCounted<SSTableRead
 
         int effectiveInterval = indexSummary.getEffectiveIndexIntervalAfterIndex(sampledIndex);
 
+        if (ifile == null)
+            return null;
+
         // scan the on-disk index, starting at the nearest sampled position.
         // The check against IndexInterval is to be exit the loop in the EQ case when the key looked for is not present
         // (bloom filter false positive). But note that for non-EQ cases, we might need to check the first key of the
@@ -1662,6 +1676,9 @@ public class SSTableReader extends SSTable implements SelfRefCounted<SSTableRead
             return first;
 
         long sampledPosition = getIndexScanPosition(token);
+
+        if (ifile == null)
+            return null;
 
         Iterator<FileDataInput> segments = ifile.iterator(sampledPosition);
         while (segments.hasNext())
@@ -1937,7 +1954,9 @@ public class SSTableReader extends SSTable implements SelfRefCounted<SSTableRead
         try
         {
             CompactionMetadata compactionMetadata = (CompactionMetadata) descriptor.getMetadataSerializer().deserialize(descriptor, MetadataType.COMPACTION);
-            return compactionMetadata.ancestors;
+            if (compactionMetadata != null)
+                return compactionMetadata.ancestors;
+            return Collections.emptySet();
         }
         catch (IOException e)
         {
@@ -1983,7 +2002,9 @@ public class SSTableReader extends SSTable implements SelfRefCounted<SSTableRead
 
     public RandomAccessReader openIndexReader()
     {
-        return ifile.createReader();
+        if (ifile != null)
+            return ifile.createReader();
+        return null;
     }
 
     /**
@@ -2136,13 +2157,15 @@ public class SSTableReader extends SSTable implements SelfRefCounted<SSTableRead
                 {
                     if (barrier != null)
                         barrier.await();
-                    bf.close();
+                    if (bf != null)
+                        bf.close();
                     if (summary != null)
                         summary.close();
                     if (runOnClose != null)
                         runOnClose.run();
                     dfile.close();
-                    ifile.close();
+                    if (ifile != null)
+                        ifile.close();
                     typeRef.release();
                 }
             });
