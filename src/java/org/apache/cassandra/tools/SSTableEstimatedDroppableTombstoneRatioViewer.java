@@ -46,7 +46,7 @@ public class SSTableEstimatedDroppableTombstoneRatioViewer
         PrintStream out = System.out;
         if (args.length < 3)
         {
-            out.println("Usage: sstabletombstonesestimate <keyspace> <table> <timestamp_in_seconds>");
+            out.println("Usage: sstabletombstonesestimate <keyspace> <table> <timestamp_in_seconds> [csv]");
             out.println();
             out.println("timestamp_in_seconds is the timestamp in the future the estimated droppable tombstones ratio will be calculated off");
             out.println();
@@ -82,15 +82,28 @@ public class SSTableEstimatedDroppableTombstoneRatioViewer
 
                 StatsMetadata stats = (StatsMetadata) metadata.get(MetadataType.STATS);
 
-                out.printf(
-                        "%s,%s,%s,%s,%s,%s%n",
-                        FBUtilities.getBroadcastAddress().getHostName(),
-                        descriptor.baseFilename(),
-                        stats.getEstimatedDroppableTombstoneRatio(gcBefore),
-                        stats.minTimestamp,
-                        stats.maxTimestamp,
-                        stats.maxLocalDeletionTime);
+                if (4 == args.length && "csv".equalsIgnoreCase(args[3])) {
+                    out.printf(
+                            "%s,%s,%s,%s,%s,%s%n",
+                            FBUtilities.getBroadcastAddress().getHostName(),
+                            descriptor.baseFilename(),
+                            stats.getEstimatedDroppableTombstoneRatio(gcBefore),
+                            stats.minTimestamp,
+                            stats.maxTimestamp,
+                            stats.maxLocalDeletionTime);
 
+                } else {
+                    out.println();
+
+                    out.printf(
+                            "Estimated droppable tombstones: %s%n",
+                            stats.getEstimatedDroppableTombstoneRatio(gcBefore));
+
+                    out.println();
+                    out.printf("Minimum timestamp: %s%n", stats.minTimestamp);
+                    out.printf("Maximum timestamp: %s%n", stats.maxTimestamp);
+                    out.printf("SSTable max local deletion time: %s%n", stats.maxLocalDeletionTime);
+                }
             }
         }
         System.exit(0); // We need that to stop non daemonized threads
