@@ -58,7 +58,7 @@ public class SSTableEstimatedDroppableTombstoneRatioViewer
         int gcBefore = Integer.parseInt(args[2]);
 
         // load keyspace descriptions.
-        DatabaseDescriptor.loadSchemas();
+        DatabaseDescriptor.loadSchemas(false);
 
         if (Schema.instance.getCFMetaData(args[0], args[1]) == null)
         {
