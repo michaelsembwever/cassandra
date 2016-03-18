@@ -113,6 +113,7 @@ Merged from 2.2:
  * Exceptions encountered calling getSeeds() breaks OTC thread (CASSANDRA-13018)
  * Fix negative mean latency metric (CASSANDRA-12876)
  * Use only one file pointer when creating commitlog segments (CASSANDRA-12539)
+ * Nodes started with join_ring=False should be able to serve requests when authentication is enabled (CASSANDRA-11381)
 Merged from 2.1:
  * Fix 2ndary index queries on partition keys for tables with static columns (CASSANDRA-13147)
  * Fix ParseError unhashable type list in cqlsh copy from (CASSANDRA-13364)
