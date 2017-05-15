@@ -34,6 +34,7 @@
  * Delete illegal character from StandardTokenizerImpl.jflex (CASSANDRA-13417)
  * Fix cqlsh automatic protocol downgrade regression (CASSANDRA-13307)
  * Tracing payload not passed from QueryMessage to tracing session (CASSANDRA-12835)
+ * Fix incorrect cqlsh results when selecting same columns multiple times (CASSANDRA-13262)
 Merged from 3.0:
  * Add storage port options to sstableloader (CASSANDRA-13518)
  * Properly handle quoted index names in cqlsh DESCRIBE output (CASSANDRA-12847)
