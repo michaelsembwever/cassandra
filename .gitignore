@@ -71,3 +71,5 @@ doc/source/tools/nodetool
 
 # Python virtual environment
 venv/
+
+.build/.mvn/wrapper/maven-wrapper.jar
