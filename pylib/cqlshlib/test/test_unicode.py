@@ -43,6 +43,7 @@ class TestCqlshUnicode(BaseTestCase):
             c.cmd_and_response("INSERT INTO t(k, v) VALUES (1, '%s');" % (value,))
             output = c.cmd_and_response('SELECT * FROM t;')
             self.assertIn(value, output)
+            self.sssertEqual(True, False)
 
     def test_unicode_identifier(self):
         col_name = 'テスト'
