@@ -61,9 +61,10 @@ else
     TESTSUITE_NAME="${TESTSUITE_NAME}.jdk8"
 fi
 
+ant -buildfile ${CASSANDRA_DIR}/build.xml realclean
 # Loop to prevent failure due to maven-ant-tasks not downloading a jar..
 for x in $(seq 1 3); do
-    ant -buildfile ${CASSANDRA_DIR}/build.xml realclean jar
+    ant -buildfile ${CASSANDRA_DIR}/build.xml jar
     RETURN="$?"
     if [ "${RETURN}" -eq "0" ]; then
         break
