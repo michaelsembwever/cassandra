@@ -99,6 +99,7 @@ public enum CassandraRelevantProperties
     /** Cassandra jmx remote and local port */
     CASSANDRA_JMX_REMOTE_PORT("cassandra.jmx.remote.port"),
     CASSANDRA_JMX_LOCAL_PORT("cassandra.jmx.local.port"),
+    CASSANDRA_JMX_SECURITY_PROFILE("cassandra.jmx.security.profile", CassandraJmxSecurityProfile.getDefault().toString()),
 
     /** This property  indicates whether SSL is enabled for monitoring remotely. Default is set to false. */
     COM_SUN_MANAGEMENT_JMXREMOTE_SSL ("com.sun.management.jmxremote.ssl"),
