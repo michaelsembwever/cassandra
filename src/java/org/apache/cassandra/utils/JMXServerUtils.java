@@ -26,7 +26,6 @@ import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.rmi.AccessException;
 import java.rmi.AlreadyBoundException;
-import java.rmi.NoSuchObjectException;
 import java.rmi.NotBoundException;
 import java.rmi.Remote;
 import java.rmi.RemoteException;
@@ -37,6 +36,10 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
+import javax.management.InstanceNotFoundException;
+import javax.management.MBeanException;
+import javax.management.ObjectName;
+import javax.management.ReflectionException;
 import javax.management.remote.*;
 import javax.management.remote.rmi.RMIConnectorServer;
 import javax.management.remote.rmi.RMIJRMPServerImpl;
@@ -44,7 +47,10 @@ import javax.rmi.ssl.SslRMIClientSocketFactory;
 import javax.rmi.ssl.SslRMIServerSocketFactory;
 import javax.security.auth.Subject;
 
+import com.sun.jmx.remote.security.MBeanServerAccessController;
 import com.google.common.collect.ImmutableMap;
+
+import org.apache.cassandra.config.CassandraJmxSecurityProfile;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -55,6 +61,8 @@ import org.apache.cassandra.auth.jmx.AuthenticationProxy;
 public class JMXServerUtils
 {
     private static final Logger logger = LoggerFactory.getLogger(JMXServerUtils.class);
+
+    private static final String CASSANDRA_JMX_SECURITY_PROFILE = "cassandra.jmx.security.profile";
 
     /**
      * Creates a server programmatically. This allows us to set parameters which normally are
@@ -182,8 +190,8 @@ public class JMXServerUtils
             final InvocationHandler handler = FBUtilities.construct(authzProxyClass, "JMX authz proxy");
             final Class[] interfaces = { MBeanServerForwarder.class };
 
-            Object proxy = Proxy.newProxyInstance(MBeanServerForwarder.class.getClassLoader(), interfaces, handler);
-            return MBeanServerForwarder.class.cast(proxy);
+            Object proxy = Proxy.newProxyInstance(CassandraMBeanServerAccessController.class.getClassLoader(), interfaces, handler);
+            return CassandraMBeanServerAccessController.class.cast(proxy);
         }
         else
         {
@@ -192,7 +200,7 @@ public class JMXServerUtils
             {
                 env.put("jmx.remote.x.access.file", accessFile);
             }
-            return null;
+            return new CassandraMBeanServerAccessController();
         }
     }
 
@@ -265,6 +273,18 @@ public class JMXServerUtils
                      serverFactory.getNeedClientAuth());
     }
 
+    private static CassandraJmxSecurityProfile getSecurityProfile()
+    {
+        try
+        {
+            return CassandraJmxSecurityProfile.convert(System.getProperty(CASSANDRA_JMX_SECURITY_PROFILE));
+        } catch (IllegalArgumentException iae)
+        {
+            logger.warn("Invalid value for {} provided, using default", CASSANDRA_JMX_SECURITY_PROFILE, iae);
+            return CassandraJmxSecurityProfile.getDefault();
+        }
+    }
+
     private static class JMXPluggableAuthenticatorWrapper implements JMXAuthenticator
     {
         final Map<?, ?> env;
@@ -320,6 +340,51 @@ public class JMXServerUtils
 
         public void setRemoteServerStub(Remote remoteServerStub) {
             this.remoteServerStub = remoteServerStub;
+        }
+    }
+
+    public static class CassandraMBeanServerAccessController extends MBeanServerAccessController
+    {
+        @Override
+        protected void checkRead()
+        {}
+
+        @Override
+        protected void checkWrite()
+        {}
+
+        // This is taken from MBeanServerAccessController, with additional security checks
+        // For a longer list of JMX-based vulnerabilities, see:
+        // https://github.com/qtc-de/beanshooter/blob/2ec4f7a4b44a29f52315973fe944eb34bc772063/beanshooter/src/de/qtc/beanshooter/mbean/diagnostic/Dispatcher.java#L48
+        // Some vulnerabilities depend on mechanisms that are not present in Java 8, like CompilerDirectiveAdd and JvmtiLoad
+        @Override
+        public Object invoke(ObjectName name, String operationName, Object params[], String signature[]) throws InstanceNotFoundException, MBeanException, ReflectionException
+        {
+            checkWrite();
+
+            if (JMXServerUtils.getSecurityProfile() == CassandraJmxSecurityProfile.RESTRICTIVE)
+            {
+                // Loading arbitrary (JVM and native) libraries from remotes
+                checkMLetMethods(name, operationName);
+            }
+
+            return getMBeanServer().invoke(name, operationName, params, signature);
+        }
+
+        private void checkMLetMethods(ObjectName name, String operation)
+                throws InstanceNotFoundException
+        {
+            // Inspired by MBeanServerAccessController, but that class ignores check if a SecurityManager is installed,
+            // which we don't want
+
+            if (!operation.equals("addURL") && !operation.equals("getMBeansFromURL"))
+                return;
+
+            if (!getMBeanServer().isInstanceOf(name, "javax.management.loading.MLet"))
+                return;
+
+            if (operation.equals("addURL") || operation.equals("getMBeansFromURL"))
+                throw new SecurityException("Access is denied!");
         }
     }
 }
