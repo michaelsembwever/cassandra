@@ -252,7 +252,7 @@ public class StreamingMultiplexedChannel
      *
      * Note: this is called from the netty event loop.
      *
-     * @return null if the message was processed sucessfully; else, a {@link java.util.concurrent.Future} to indicate
+     * @return null if the message was processed successfully; else, a {@link java.util.concurrent.Future} to indicate
      * the status of aborting any remaining tasks in the session.
      */
     Future<?> onMessageComplete(Future<?> future, StreamMessage msg)
@@ -446,14 +446,14 @@ public class StreamingMultiplexedChannel
             if (logger.isTraceEnabled())
                 logger.trace("{} Sending keep-alive to {}.", createLogTag(session, channel), session.peer);
 
-            sendControlMessage(KeepAliveMessage.INSTANCE).addListener(future ->
+            sendControlMessage(new KeepAliveMessage()).addListener(f ->
             {
-                if (future.isSuccess() || future.isCancelled())
+                if (f.isSuccess() || f.isCancelled())
                     return;
 
                 if (logger.isDebugEnabled())
                     logger.debug("{} Could not send keep-alive message (perhaps stream session is finished?).",
-                                 createLogTag(session, channel), future.cause());
+                                 createLogTag(session, channel), f.cause());
             });
         }
     }

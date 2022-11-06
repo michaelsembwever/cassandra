@@ -23,9 +23,8 @@ import org.apache.cassandra.streaming.StreamSession;
 
 public class KeepAliveMessage extends StreamMessage
 {
-    public static final KeepAliveMessage INSTANCE = new KeepAliveMessage();
 
-    private KeepAliveMessage()
+    public KeepAliveMessage()
     {
         super(Type.KEEP_ALIVE);
     }
@@ -36,11 +35,11 @@ public class KeepAliveMessage extends StreamMessage
         return "keep-alive";
     }
 
-    public static Serializer<KeepAliveMessage> serializer = new Serializer<>()
+    public static Serializer<KeepAliveMessage> serializer = new Serializer<KeepAliveMessage>()
     {
         public KeepAliveMessage deserialize(DataInputPlus in, int version)
         {
-            return INSTANCE;
+            return new KeepAliveMessage();
         }
 
         public void serialize(KeepAliveMessage message, StreamingDataOutputPlus out, int version, StreamSession session)
