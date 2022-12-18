@@ -69,7 +69,7 @@ Cassandra is a distributed (peer-to-peer) system for the management and storage 
 %build
 export LANG=en_US.UTF-8
 export JAVA_TOOL_OPTIONS="-Dfile.encoding=UTF-8"
-ant clean jar -Dversion=%{upstream_version}
+ant jar -Dversion=%{upstream_version} -Dno-checkstyle=true -Drat.skip=true -Dant.gen-doc.skip=true
 
 %install
 %{__rm} -rf %{buildroot}
@@ -115,10 +115,10 @@ cp -p redhat/default %{buildroot}/%{_sysconfdir}/default/%{username}
 cp -pr lib/* %{buildroot}/usr/share/%{username}/lib/
 
 # copy stress jar
-cp -p build/tools/lib/stress.jar %{buildroot}/usr/share/%{username}/
+cp -p %{build_dir}/tools/lib/stress.jar %{buildroot}/usr/share/%{username}/
 
 # copy fqltool jar
-cp -p build/tools/lib/fqltool.jar %{buildroot}/usr/share/%{username}/
+cp -p %{build_dir}/tools/lib/fqltool.jar %{buildroot}/usr/share/%{username}/
 
 # copy binaries
 mv bin/cassandra %{buildroot}/usr/sbin/
@@ -126,7 +126,7 @@ cp -p bin/* %{buildroot}/usr/bin/
 cp -p tools/bin/* %{buildroot}/usr/bin/
 
 # copy cassandra jar
-cp build/apache-cassandra-%{upstream_version}.jar %{buildroot}/usr/share/%{username}/
+cp %{build_dir}/apache-cassandra-%{upstream_version}.jar %{buildroot}/usr/share/%{username}/
 
 %clean
 %{__rm} -rf %{buildroot}
@@ -207,6 +207,10 @@ This package contains extra tools for working with Cassandra clusters.
 
 
 %changelog
+# packaging changes, not software changes
+* Thu May 04 2023 Mick Semb Wever <mck@apache.org>
+- 5.0
+- RPM packaging brought in-tree. CASSANDRA-18133
 * Mon Dec 05 2016 Michael Shuler <mshuler@apache.org>
 - 2.1.17, 2.2.9, 3.0.11, 3.10
 - Reintroduce RPM packaging
