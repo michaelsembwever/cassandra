@@ -317,6 +317,7 @@ public class Mutation implements IMutation, Supplier<Mutation>
     private int serializedSize30;
     private int serializedSize3014;
     private int serializedSize40;
+    private int serializedSize41;
 
     public int serializedSize(int version)
     {
