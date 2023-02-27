@@ -118,9 +118,10 @@ public class MixedModeRepairTest extends UpgradeTestBase
                 }
                 else
                 {
+                    cluster.get(repairedNode).nodetoolResult("repair", "--full", KEYSPACE);
                     // verify that the repair repaired the data
-                    assertRows(cluster.get(1).executeInternal(SELECT, key), row2);
-                    assertRows(cluster.get(2).executeInternal(SELECT, key), row2);
+                    assertRows(cluster.get(1).executeInternal(SELECT, key), row1, row2);
+                    assertRows(cluster.get(2).executeInternal(SELECT, key), row1, row2);
                 }
             }
         })
