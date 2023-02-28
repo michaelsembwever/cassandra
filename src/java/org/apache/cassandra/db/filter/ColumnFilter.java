@@ -34,7 +34,6 @@ import org.apache.cassandra.db.rows.CellPath;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.CassandraVersion;
@@ -969,7 +968,7 @@ public abstract class ColumnFilter
         {
             out.writeByte(makeHeaderByte(selection));
 
-            if (version >= MessagingService.VERSION_3014 && selection.fetchesAllColumns(false))
+            if (selection.fetchesAllColumns(false))
             {
                 serializeRegularAndStaticColumns(selection.fetchedColumns(), out);
             }
@@ -1004,8 +1003,6 @@ public abstract class ColumnFilter
         public ColumnFilter deserialize(DataInputPlus in, int version, TableMetadata metadata) throws IOException
         {
             int header = in.readUnsignedByte();
-            // The meaning of isFetchAll is actually different for pre-4.0 versions and for 4.0+ versions
-            // In 4.0+ it meant is fetch all regulars
             boolean isFetchAll = (header & FETCH_ALL_MASK) != 0;
             boolean hasQueried = (header & HAS_QUERIED_MASK) != 0;
             boolean hasSubSelections = (header & HAS_SUB_SELECTIONS_MASK) != 0;
@@ -1016,14 +1013,7 @@ public abstract class ColumnFilter
 
             if (isFetchAll)
             {
-                if (version >= MessagingService.VERSION_3014)
-                {
-                    fetched = deserializeRegularAndStaticColumns(in, metadata);
-                }
-                else
-                {
-                    fetched = metadata.regularAndStaticColumns();
-                }
+                fetched = deserializeRegularAndStaticColumns(in, metadata);
             }
 
             if (hasQueried)
@@ -1091,7 +1081,7 @@ public abstract class ColumnFilter
         {
             long size = 1; // header byte
 
-            if (version >= MessagingService.VERSION_3014 && selection.fetchesAllColumns(false))
+            if (selection.fetchesAllColumns(false))
             {
                 size += regularAndStaticColumnsSerializedSize(selection.fetchedColumns());
             }

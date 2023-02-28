@@ -518,8 +518,6 @@ public class ColumnFilterTest
 
     private void testRoundTrips(ColumnFilter cf)
     {
-        testRoundTrip(cf, MessagingService.VERSION_30);
-        testRoundTrip(cf, MessagingService.VERSION_3014);
         testRoundTrip(cf, MessagingService.VERSION_40);
     }
 
@@ -533,14 +531,7 @@ public class ColumnFilterTest
             DataInputPlus input = new DataInputBuffer(output.buffer(), false);
             ColumnFilter deserialized = serializer.deserialize(input, version, metadata);
 
-            if (version == MessagingService.VERSION_30 && columnFilter.fetchesAllColumns(false))
-            {
-                Assert.assertEquals(metadata.regularAndStaticColumns(), deserialized.fetchedColumns());
-            }
-            else
-            {
-                Assert.assertEquals(deserialized, columnFilter);
-            }
+            Assert.assertEquals(deserialized, columnFilter);
         }
         catch (IOException e)
         {

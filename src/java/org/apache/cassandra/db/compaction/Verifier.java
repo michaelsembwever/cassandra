@@ -511,7 +511,7 @@ public class Verifier implements Closeable
         if (bfPath.exists())
         {
             try (FileInputStreamPlus stream = bfPath.newInputStream();
-                 IFilter bf = BloomFilterSerializer.deserialize(stream, sstable.descriptor.version.hasOldBfFormat()))
+                 IFilter bf = BloomFilterSerializer.deserialize(stream))
             {
             }
         }

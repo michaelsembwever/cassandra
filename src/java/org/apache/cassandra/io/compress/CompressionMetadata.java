@@ -86,11 +86,11 @@ public class CompressionMetadata
     @VisibleForTesting
     public CompressionMetadata(Descriptor desc, long compressedLength)
     {
-        this(desc.filenameFor(Component.COMPRESSION_INFO), compressedLength, desc.version.hasMaxCompressedLength());
+        this(desc.filenameFor(Component.COMPRESSION_INFO), compressedLength);
     }
 
     @VisibleForTesting
-    public CompressionMetadata(String indexFilePath, long compressedLength, boolean hasMaxCompressedSize)
+    public CompressionMetadata(String indexFilePath, long compressedLength)
     {
         this.indexFilePath = indexFilePath;
 
@@ -107,8 +107,7 @@ public class CompressionMetadata
             }
             int chunkLength = stream.readInt();
             int maxCompressedSize = Integer.MAX_VALUE;
-            if (hasMaxCompressedSize)
-                maxCompressedSize = stream.readInt();
+            maxCompressedSize = stream.readInt();
             try
             {
                 parameters = new CompressionParams(compressorName, chunkLength, maxCompressedSize, options);

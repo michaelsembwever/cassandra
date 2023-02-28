@@ -228,8 +228,6 @@ final class HintsDescriptor
     {
         switch (hintsVersion)
         {
-            case VERSION_30:
-                return MessagingService.VERSION_30;
             case VERSION_40:
                 return MessagingService.VERSION_40;
             default:

@@ -208,8 +208,9 @@ public class MessagingService extends MessagingServiceMBeanImpl
     private static final Logger logger = LoggerFactory.getLogger(MessagingService.class);
 
     // 8 bits version, so don't waste versions
+    @Deprecated
     public static final int VERSION_30 = 10;
-    public static final int VERSION_3014 = 11;
+
     public static final int VERSION_40 = 12;
     public static final int minimum_version = VERSION_40;
     public static final int current_version = VERSION_40;
@@ -235,8 +236,6 @@ public class MessagingService extends MessagingServiceMBeanImpl
 
     public enum Version
     {
-        VERSION_30(10),
-        VERSION_3014(11),
         VERSION_40(12),
         VERSION_41(13);
 

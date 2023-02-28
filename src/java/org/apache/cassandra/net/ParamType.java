@@ -21,7 +21,6 @@ import java.util.HashMap;
 import java.util.Map;
 import javax.annotation.Nullable;
 
-import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.Int32Serializer;
@@ -45,18 +44,8 @@ public enum ParamType
     FORWARD_TO          (0, "FWD_TO",        ForwardingInfo.serializer),
     RESPOND_TO          (1, "FWD_FRM",       fwdFrmSerializer),
 
-    @Deprecated
-    FAILURE_RESPONSE    (2, "FAIL",          LegacyFlag.serializer),
-    @Deprecated
-    FAILURE_REASON      (3, "FAIL_REASON",   RequestFailureReason.serializer),
-    @Deprecated
-    FAILURE_CALLBACK    (4, "CAL_BAC",       LegacyFlag.serializer),
-
     TRACE_SESSION       (5, "TraceSession",  TimeUUID.Serializer.instance),
     TRACE_TYPE          (6, "TraceType",     Tracing.traceTypeSerializer),
-
-    @Deprecated
-    TRACK_REPAIRED_DATA (7, "TrackRepaired", LegacyFlag.serializer),
 
     TOMBSTONE_FAIL(8, "TSF", Int32Serializer.serializer),
     TOMBSTONE_WARNING(9, "TSW", Int32Serializer.serializer),

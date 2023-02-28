@@ -73,7 +73,6 @@ import static org.apache.cassandra.net.HandshakeProtocol.*;
 import static org.apache.cassandra.net.ConnectionType.STREAMING;
 import static org.apache.cassandra.net.OutboundConnectionInitiator.Result.incompatible;
 import static org.apache.cassandra.net.OutboundConnectionInitiator.Result.messagingSuccess;
-import static org.apache.cassandra.net.OutboundConnectionInitiator.Result.retry;
 import static org.apache.cassandra.net.OutboundConnectionInitiator.Result.streamingSuccess;
 import static org.apache.cassandra.net.SocketFactory.*;
 
@@ -350,68 +349,35 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
 
                 FrameEncoder frameEncoder = null;
                 Result<SuccessType> result;
-                if (useMessagingVersion > 0)
-                {
-                    if (useMessagingVersion < settings.acceptVersions.min || useMessagingVersion > settings.acceptVersions.max)
-                    {
-                        result = incompatible(useMessagingVersion, peerMessagingVersion);
-                    }
-                    else
-                    {
-                        // This is a bit ugly
-                        if (type.isMessaging())
-                        {
-                            switch (settings.framing)
-                            {
-                                case LZ4:
-                                    frameEncoder = FrameEncoderLZ4.fastInstance;
-                                    break;
-                                case CRC:
-                                    frameEncoder = FrameEncoderCrc.instance;
-                                    break;
-                                case UNPROTECTED:
-                                    frameEncoder = FrameEncoderUnprotected.instance;
-                                    break;
-                            }
+                assert useMessagingVersion > 0;
 
-                            result = (Result<SuccessType>) messagingSuccess(ctx.channel(), useMessagingVersion, frameEncoder.allocator());
-                        }
-                        else
-                        {
-                            result = (Result<SuccessType>) streamingSuccess(ctx.channel(), useMessagingVersion);
-                        }
-                    }
+                if (useMessagingVersion < settings.acceptVersions.min || useMessagingVersion > settings.acceptVersions.max)
+                {
+                    result = incompatible(useMessagingVersion, peerMessagingVersion);
                 }
                 else
                 {
-                    assert type.isMessaging();
-
-                    // pre40 handshake responses only (can be a post40 node)
-                    if (peerMessagingVersion == requestMessagingVersion
-                        || peerMessagingVersion > settings.acceptVersions.max) // this clause is for impersonating 3.0 node in testing only
+                    // This is a bit ugly
+                    if (type.isMessaging())
                     {
                         switch (settings.framing)
                         {
-                            case CRC:
-                            case UNPROTECTED:
-                                frameEncoder = FrameEncoderLegacy.instance;
-                                break;
                             case LZ4:
-                                frameEncoder = FrameEncoderLegacyLZ4.instance;
+                                frameEncoder = FrameEncoderLZ4.fastInstance;
+                                break;
+                            case CRC:
+                                frameEncoder = FrameEncoderCrc.instance;
+                                break;
+                            case UNPROTECTED:
+                                frameEncoder = FrameEncoderUnprotected.instance;
                                 break;
                         }
 
-                        result = (Result<SuccessType>) messagingSuccess(ctx.channel(), requestMessagingVersion, frameEncoder.allocator());
+                        result = (Result<SuccessType>) messagingSuccess(ctx.channel(), useMessagingVersion, frameEncoder.allocator());
                     }
-                    else if (peerMessagingVersion < settings.acceptVersions.min)
-                        result = incompatible(-1, peerMessagingVersion);
                     else
-                        result = retry(peerMessagingVersion);
-
-                    if (result.isSuccess())
                     {
-                        ConfirmOutboundPre40 message = new ConfirmOutboundPre40(settings.acceptVersions.max, settings.from);
-                        AsyncChannelPromise.writeAndFlush(ctx, message.encode());
+                        result = (Result<SuccessType>) streamingSuccess(ctx.channel(), useMessagingVersion);
                     }
                 }
 

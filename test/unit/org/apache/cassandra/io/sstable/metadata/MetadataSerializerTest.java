@@ -155,12 +155,6 @@ public class MetadataSerializerTest
     }
 
     @Test
-    public void testMVersions() throws Throwable
-    {
-        testVersions("ma", "mb", "mc", "md", "me");
-    }
-
-    @Test
     public void testNVersions() throws Throwable
     {
         testVersions("na", "nb", "nc");
@@ -194,37 +188,30 @@ public class MetadataSerializerTest
     }
 
     @Test
-    public void pendingRepairCompatibility()
-    {
-        Arrays.asList("ma", "mb", "mc", "md", "me").forEach(v -> assertFalse(BigFormat.instance.getVersion(v).hasPendingRepair()));
-        Arrays.asList("na", "nb", "nc").forEach(v -> assertTrue(BigFormat.instance.getVersion(v).hasPendingRepair()));
-    }
-
-    @Test
     public void originatingHostCompatibility()
     {
-        Arrays.asList("ma", "mb", "mc", "md", "na").forEach(v -> assertFalse(BigFormat.instance.getVersion(v).hasOriginatingHostId()));
-        Arrays.asList("me", "nb", "nc").forEach(v -> assertTrue(BigFormat.instance.getVersion(v).hasOriginatingHostId()));
+        Arrays.asList("na").forEach(v -> assertFalse(BigFormat.instance.getVersion(v).hasOriginatingHostId()));
+        Arrays.asList("nb", "nc").forEach(v -> assertTrue(BigFormat.instance.getVersion(v).hasOriginatingHostId()));
     }
 
     @Test
     public void improvedMinMaxCompatibility()
     {
-        Arrays.asList("ma", "mb", "mc", "md", "me", "na", "nb").forEach(v -> assertFalse(BigFormat.instance.getVersion(v).hasImprovedMinMax()));
+        Arrays.asList("na", "nb").forEach(v -> assertFalse(BigFormat.instance.getVersion(v).hasImprovedMinMax()));
         Arrays.asList("nc", "oa").forEach(v -> assertTrue(BigFormat.instance.getVersion(v).hasImprovedMinMax()));
     }
 
     @Test
     public void legacyMinMaxCompatiblity()
     {
-        Arrays.asList("oa").forEach(v -> assertFalse(BigFormat.instance.getVersion(v).hasLegacyMinMax()));
-        Arrays.asList("ma", "mb", "mc", "md", "me", "na", "nb", "nc").forEach(v -> assertTrue(BigFormat.instance.getVersion(v).hasLegacyMinMax()));
+        Arrays.asList("nc", "oa").forEach(v -> assertFalse(BigFormat.instance.getVersion(v).hasLegacyMinMax()));
+        Arrays.asList("na", "nb").forEach(v -> assertTrue(BigFormat.instance.getVersion(v).hasLegacyMinMax()));
     }
 
     @Test
     public void partitionLevelDeletionPresenceMarkerCompatibility()
     {
-        Arrays.asList("ma", "mb", "mc", "md", "me", "na", "nb").forEach(v -> assertFalse(BigFormat.instance.getVersion(v).hasPartitionLevelDeletionsPresenceMarker()));
+        Arrays.asList("na", "nb").forEach(v -> assertFalse(BigFormat.instance.getVersion(v).hasPartitionLevelDeletionsPresenceMarker()));
         Arrays.asList("nc", "oa").forEach(v -> assertTrue(BigFormat.instance.getVersion(v).hasPartitionLevelDeletionsPresenceMarker()));
     }
 }

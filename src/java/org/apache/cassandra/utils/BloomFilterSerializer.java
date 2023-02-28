@@ -39,10 +39,10 @@ public final class BloomFilterSerializer
     }
 
     @SuppressWarnings("resource")
-    public static <I extends InputStream & DataInput> BloomFilter deserialize(I in, boolean oldBfFormat) throws IOException
+    public static <I extends InputStream & DataInput> BloomFilter deserialize(I in) throws IOException
     {
         int hashes = in.readInt();
-        IBitSet bs = OffHeapBitSet.deserialize(in, oldBfFormat);
+        IBitSet bs = OffHeapBitSet.deserialize(in);
 
         return new BloomFilter(hashes, bs);
     }

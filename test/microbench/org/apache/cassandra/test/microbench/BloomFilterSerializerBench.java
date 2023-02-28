@@ -33,7 +33,6 @@ import org.apache.cassandra.utils.BloomFilter;
 import org.apache.cassandra.utils.BloomFilterSerializer;
 import org.apache.cassandra.utils.FilterFactory;
 import org.apache.cassandra.utils.IFilter;
-import org.apache.cassandra.utils.SerializationsTest;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -57,9 +56,6 @@ public class BloomFilterSerializerBench
     @Param({"1", "10", "100", "1024"})
     private long numElemsInK;
 
-    @Param({"true", "false"})
-    public boolean oldBfFormat;
-
     static final IFilter.FilterKey wrap(ByteBuffer buf)
     {
         return new BufferDecoratedKey(new Murmur3Partitioner.LongToken(0L), buf);
@@ -76,15 +72,12 @@ public class BloomFilterSerializerBench
             BloomFilter filter = (BloomFilter) FilterFactory.getFilter(numElemsInK * 1024, 0.01d);
             filter.add(wrap(testVal));
             DataOutputStreamPlus out = new FileOutputStreamPlus(file);
-            if (oldBfFormat)
-                SerializationsTest.serializeOldBfFormat(filter, out);
-            else
-                BloomFilterSerializer.serialize(filter, out);
+            BloomFilterSerializer.serialize(filter, out);
             out.close();
             filter.close();
 
             FileInputStreamPlus in = new FileInputStreamPlus(file);
-            BloomFilter filter2 = BloomFilterSerializer.deserialize(in, oldBfFormat);
+            BloomFilter filter2 = BloomFilterSerializer.deserialize(in);
             FileUtils.closeQuietly(in);
             filter2.close();
         }

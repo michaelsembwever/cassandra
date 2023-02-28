@@ -27,7 +27,6 @@ import java.util.List;
 import java.util.Random;
 
 import com.google.common.collect.Lists;
-import com.google.common.collect.Iterables;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileInputStreamPlus;
 import org.apache.cassandra.io.util.FileOutputStreamPlus;
@@ -48,7 +47,6 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.compaction.AbstractCompactionTask;
 import org.apache.cassandra.db.compaction.CompactionManager;
-import org.apache.cassandra.db.repair.PendingAntiCompaction;
 import org.apache.cassandra.db.streaming.CassandraOutgoingFile;
 import org.apache.cassandra.db.SinglePartitionSliceCommandTest;
 import org.apache.cassandra.db.compaction.Verifier;
@@ -70,7 +68,6 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.TimeUUID;
 
-import static java.util.Collections.singleton;
 import static org.apache.cassandra.service.ActiveRepairService.NO_PENDING_REPAIR;
 import static org.apache.cassandra.service.ActiveRepairService.UNREPAIRED_SSTABLE;
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
@@ -94,7 +91,7 @@ public class LegacySSTableTest
      * See {@link #testGenerateSstables()} to generate sstables.
      * Take care on commit as you need to add the sstable files using {@code git add -f}
      */
-    public static final String[] legacyVersions = {"nc", "nb", "na", "me", "md", "mc", "mb", "ma"};
+    public static final String[] legacyVersions = {"nc", "nb", "na"};
 
     // 1200 chars
     static final String longString = "0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789" +
@@ -182,8 +179,7 @@ public class LegacySSTableTest
                     sstable.descriptor.getMetadataSerializer().mutateRepairMetadata(sstable.descriptor, 1234, NO_PENDING_REPAIR, false);
                     sstable.reloadSSTableMetadata();
                     assertEquals(1234, sstable.getRepairedAt());
-                    if (sstable.descriptor.version.hasPendingRepair())
-                        assertEquals(NO_PENDING_REPAIR, sstable.getPendingRepair());
+                    assertEquals(NO_PENDING_REPAIR, sstable.getPendingRepair());
                 }
 
                 boolean isTransient = false;
@@ -193,10 +189,8 @@ public class LegacySSTableTest
                     sstable.descriptor.getMetadataSerializer().mutateRepairMetadata(sstable.descriptor, UNREPAIRED_SSTABLE, random, isTransient);
                     sstable.reloadSSTableMetadata();
                     assertEquals(UNREPAIRED_SSTABLE, sstable.getRepairedAt());
-                    if (sstable.descriptor.version.hasPendingRepair())
-                        assertEquals(random, sstable.getPendingRepair());
-                    if (sstable.descriptor.version.hasIsTransient())
-                        assertEquals(isTransient, sstable.isTransient());
+                    assertEquals(random, sstable.getPendingRepair());
+                    assertEquals(isTransient, sstable.isTransient());
 
                     isTransient = !isTransient;
                 }
@@ -210,9 +204,6 @@ public class LegacySSTableTest
         // we need to make sure we write old version metadata in the format for that version
         for (String legacyVersion : legacyVersions)
         {
-            // Skip 2.0.1 sstables as it doesn't have repaired information
-            if (legacyVersion.equals("jb"))
-                continue;
             truncateTables(legacyVersion);
             loadLegacyTables(legacyVersion);
 
@@ -225,13 +216,10 @@ public class LegacySSTableTest
                     try
                     {
                         cfs.getCompactionStrategyManager().mutateRepaired(Collections.singleton(sstable), UNREPAIRED_SSTABLE, random, false);
-                        if (!sstable.descriptor.version.hasPendingRepair())
-                            fail("We should fail setting pending repair on unsupported sstables "+sstable);
                     }
                     catch (IllegalStateException e)
                     {
-                        if (sstable.descriptor.version.hasPendingRepair())
-                            fail("We should succeed setting pending repair on "+legacyVersion + " sstables, failed on "+sstable);
+                        fail("We should succeed setting pending repair on "+legacyVersion + " sstables, failed on "+sstable);
                     }
                 }
                 // set transient
@@ -240,13 +228,10 @@ public class LegacySSTableTest
                     try
                     {
                         cfs.getCompactionStrategyManager().mutateRepaired(Collections.singleton(sstable), UNREPAIRED_SSTABLE, nextTimeUUID(), true);
-                        if (!sstable.descriptor.version.hasIsTransient())
-                            fail("We should fail setting pending repair on unsupported sstables "+sstable);
                     }
                     catch (IllegalStateException e)
                     {
-                        if (sstable.descriptor.version.hasIsTransient())
-                            fail("We should succeed setting pending repair on "+legacyVersion + " sstables, failed on "+sstable);
+                        fail("We should succeed setting pending repair on "+legacyVersion + " sstables, failed on "+sstable);
                     }
                 }
             }
@@ -335,8 +320,6 @@ public class LegacySSTableTest
                 try (Verifier verifier = new Verifier(cfs, sstable, false, Verifier.options().checkVersion(true).build()))
                 {
                     verifier.verify();
-                    if (!sstable.descriptor.version.isLatestVersion())
-                        fail("Verify should throw RuntimeException for old sstables "+sstable);
                 }
                 catch (RuntimeException e)
                 {}
@@ -353,25 +336,6 @@ public class LegacySSTableTest
                     fail("Verify should throw RuntimeException for old sstables "+sstable);
                 }
             }
-        }
-    }
-
-    @Test
-    public void testPendingAntiCompactionOldSSTables() throws Exception
-    {
-        for (String legacyVersion : legacyVersions)
-        {
-            ColumnFamilyStore cfs = Keyspace.open("legacy_tables").getColumnFamilyStore(String.format("legacy_%s_simple", legacyVersion));
-            loadLegacyTable("legacy_%s_simple", legacyVersion);
-
-            boolean shouldFail = !cfs.getLiveSSTables().stream().allMatch(sstable -> sstable.descriptor.version.hasPendingRepair());
-            IPartitioner p = Iterables.getFirst(cfs.getLiveSSTables(), null).getPartitioner();
-            Range<Token> r = new Range<>(p.getMinimumToken(), p.getMinimumToken());
-            PendingAntiCompaction.AcquisitionCallable acquisitionCallable = new PendingAntiCompaction.AcquisitionCallable(cfs, singleton(r), nextTimeUUID(), 0, 0);
-            PendingAntiCompaction.AcquireResult res = acquisitionCallable.call();
-            assertEquals(shouldFail, res == null);
-            if (res != null)
-                res.abort();
         }
     }
 
