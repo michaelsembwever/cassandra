@@ -48,8 +48,7 @@ import org.apache.cassandra.utils.memory.BufferPools;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
 import static java.lang.Math.*;
-import static org.apache.cassandra.net.MessagingService.VERSION_30;
-import static org.apache.cassandra.net.MessagingService.VERSION_3014;
+import static org.apache.cassandra.net.MessagingService.VERSION_40;
 import static org.apache.cassandra.net.MessagingService.current_version;
 import static org.apache.cassandra.net.MessagingService.minimum_version;
 import static org.apache.cassandra.net.OutboundConnections.LARGE_MESSAGE_THRESHOLD;
@@ -271,7 +270,7 @@ public class FramingTest
     private void testRandomLegacy(int count)
     {
         SecureRandom seeds = new SecureRandom();
-        for (int messagingVersion : new int[] { VERSION_30, VERSION_3014, current_version})
+        for (int messagingVersion : new int[] { VERSION_40 })
         {
             FrameDecoder decoder = new FrameDecoderLegacy(GlobalBufferPoolAllocator.instance, messagingVersion);
             testSomeMessages(seeds.nextLong(), count, 0.0f, messagingVersion, decoder);

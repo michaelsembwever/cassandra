@@ -47,7 +47,6 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.OutboundConnectionInitiator.Result.MessagingSuccess;
 
 import static org.apache.cassandra.net.MessagingService.VERSION_30;
-import static org.apache.cassandra.net.MessagingService.VERSION_3014;
 import static org.apache.cassandra.net.MessagingService.current_version;
 import static org.apache.cassandra.net.MessagingService.minimum_version;
 import static org.apache.cassandra.net.ConnectionType.SMALL_MESSAGES;
@@ -153,65 +152,44 @@ public class HandshakeTest
     }
 
     @Test
-    public void testSendCompatibleMaxVersionPre40() throws InterruptedException, ExecutionException
+    public void testSendAllSupported() throws InterruptedException, ExecutionException
     {
-        Result result = handshake(VERSION_3014, VERSION_30, VERSION_3014, VERSION_30, VERSION_3014);
-        Assert.assertEquals(Result.Outcome.SUCCESS, result.outcome);
-        Assert.assertEquals(VERSION_3014, result.success().messagingVersion);
-        result.success().channel.close();
-    }
+        List<MessagingService.Version> supportedVersions = MessagingService.Version.supportedVersions();
+        for (MessagingService.Version req : supportedVersions)
+            for (MessagingService.Version outMin : supportedVersions)
+                for (MessagingService.Version outMax : supportedVersions)
+                    if (outMin.value <= outMax.value)
+                        for (MessagingService.Version inMin : supportedVersions)
+                            for (MessagingService.Version inMax : supportedVersions)
+                                if (inMin.value <= inMax.value)
+                                {
+                                    Result result = handshake(req.value, outMin.value, outMax.value, inMin.value, inMax.value);
+                                    // expect success if out and in have a version in common
+                                    boolean expectSuccess = outMin.value <= inMax.value && inMin.value <= outMax.value;
 
-    @Test
-    public void testSendCompatibleFutureVersionPre40() throws InterruptedException, ExecutionException
-    {
-        Result result = handshake(VERSION_3014, VERSION_30, VERSION_3014, VERSION_30, VERSION_30);
-        Assert.assertEquals(Result.Outcome.RETRY, result.outcome);
-        Assert.assertEquals(VERSION_30, result.retry().withMessagingVersion);
-    }
+                                    Assert.assertEquals(String.format("wrong result outcome for req %s outMin %s outMax %s inMin %s inMax %s", req.value, outMin.value, outMax.value, inMin.value, inMax.value),
+                                                    expectSuccess ? Result.Outcome.SUCCESS : Result.Outcome.INCOMPATIBLE, result.outcome);
 
-    @Test
-    public void testSendIncompatibleFutureVersionPre40() throws InterruptedException, ExecutionException
-    {
-        Result result = handshake(VERSION_3014, VERSION_3014, VERSION_3014, VERSION_30, VERSION_30);
-        Assert.assertEquals(Result.Outcome.INCOMPATIBLE, result.outcome);
-        Assert.assertEquals(-1, result.incompatible().closestSupportedVersion);
-        Assert.assertEquals(VERSION_30, result.incompatible().maxMessagingVersion);
-    }
-
-    @Test
-    public void testSendCompatibleOldVersionPre40() throws InterruptedException
-    {
-        try
-        {
-            handshake(VERSION_30, VERSION_30, VERSION_3014, VERSION_3014, VERSION_3014);
-            Assert.fail("Should have thrown");
+                                    if (expectSuccess)
+                                    {
+                                        Assert.assertEquals(String.format("wrong agreed messagingVersion for req %s outMin %s outMax %s inMin %s inMax %s", req.value, outMin.value, outMax.value, inMin.value, inMax.value),
+                                                        Math.min(outMax.value, inMax.value), result.success().messagingVersion);
+                                        result.success().channel.close();
+                                    }
+                                }
         }
-        catch (ExecutionException e)
-        {
-            assertTrue(e.getCause() instanceof ClosedChannelException);
-        }
-    }
-
-    @Test
-    public void testSendIncompatibleOldVersionPre40() throws InterruptedException
-    {
-        try
-        {
-            handshake(VERSION_30, VERSION_30, VERSION_30, VERSION_3014, VERSION_3014);
-            Assert.fail("Should have thrown");
-        }
-        catch (ExecutionException e)
-        {
-            assertTrue(e.getCause() instanceof ClosedChannelException);
-        }
-    }
 
     @Test
     public void testSendCompatibleOldVersion40() throws InterruptedException, ExecutionException
     {
-        Result result = handshake(VERSION_30, VERSION_30, VERSION_30, VERSION_30, current_version);
-        Assert.assertEquals(Result.Outcome.SUCCESS, result.outcome);
-        Assert.assertEquals(VERSION_30, result.success().messagingVersion);
+        try
+        {
+            Assert.fail(Objects.toString(handshake(VERSION_30, VERSION_30, VERSION_30, VERSION_30, current_version)));
+        }
+        catch (ExecutionException e)
+        {
+            assertTrue(e.getCause() instanceof ClosedChannelException);
+        }
     }
 
     @Test
@@ -230,9 +208,14 @@ public class HandshakeTest
     @Test // fairly contrived case, but since we introduced logic for testing we need to be careful it doesn't make us worse
     public void testSendToFuturePost40BelievedToBePre40() throws InterruptedException, ExecutionException
     {
-        Result result = handshake(VERSION_30, VERSION_30, current_version, VERSION_30, current_version + 1);
-        Assert.assertEquals(Result.Outcome.SUCCESS, result.outcome);
-        Assert.assertEquals(VERSION_30, result.success().messagingVersion);
+        try
+        {
+            Assert.fail(Objects.toString(handshake(VERSION_30, VERSION_30, current_version, VERSION_30, current_version + 1)));
+        }
+        catch (ExecutionException e)
+        {
+            assertTrue(e.getCause() instanceof ClosedChannelException);
+        }
     }
 
     @Test

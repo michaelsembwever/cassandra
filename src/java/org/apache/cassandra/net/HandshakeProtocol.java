@@ -29,14 +29,12 @@ import io.netty.buffer.ByteBufAllocator;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.io.util.DataInputBuffer;
-import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputBufferFixed;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.utils.memory.BufferPools;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.apache.cassandra.locator.InetAddressAndPort.Serializer.inetAddressAndPortSerializer;
-import static org.apache.cassandra.net.MessagingService.VERSION_30;
 import static org.apache.cassandra.net.MessagingService.VERSION_40;
 import static org.apache.cassandra.net.Message.validateLegacyProtocolMagic;
 import static org.apache.cassandra.net.Crc.*;
@@ -266,17 +264,6 @@ public class HandshakeProtocol
             return buffer;
         }
 
-        /**
-         * Respond to pre40 nodes only with our current messagingVersion
-         */
-        static ByteBuf respondPre40(int messagingVersion, ByteBufAllocator allocator)
-        {
-            ByteBuf buffer = allocator.directBuffer(4);
-            buffer.clear();
-            buffer.writeInt(messagingVersion);
-            return buffer;
-        }
-
         static Accept maybeDecode(ByteBuf in, int handshakeMessagingVersion) throws InvalidCrc
         {
             int readerIndex = in.readerIndex();
@@ -318,91 +305,6 @@ public class HandshakeProtocol
         public String toString()
         {
             return String.format("Accept(use: %d, max: %d)", useMessagingVersion, maxMessagingVersion);
-        }
-    }
-
-    /**
-     * The third message of the handshake, sent by pre40 nodes on reception of {@link Accept}.
-     * This message contains:
-     *   1) The connection initiator's {@link org.apache.cassandra.net.MessagingService#current_version} (4 bytes).
-     *      This indicates the max messaging version supported by this node.
-     *   2) The connection initiator's broadcast address as encoded by {@link InetAddressAndPort.Serializer}.
-     *      This can be either 7 bytes for an IPv4 address, or 19 bytes for an IPv6 one, post40.
-     *      This can be either 5 bytes for an IPv4 address, or 17 bytes for an IPv6 one, pre40.
-     * <p>
-     * This message concludes the legacy handshake protocol.
-     */
-    static class ConfirmOutboundPre40
-    {
-        private static final int MAX_LENGTH = 4 + InetAddressAndPort.Serializer.MAXIMUM_SIZE;
-
-        final int maxMessagingVersion;
-        final InetAddressAndPort from;
-
-        ConfirmOutboundPre40(int maxMessagingVersion, InetAddressAndPort from)
-        {
-            this.maxMessagingVersion = maxMessagingVersion;
-            this.from = from;
-        }
-
-        ByteBuf encode()
-        {
-            ByteBuffer buffer = BufferPools.forNetworking().get(MAX_LENGTH, BufferType.OFF_HEAP);
-            try (DataOutputBufferFixed out = new DataOutputBufferFixed(buffer))
-            {
-                out.writeInt(maxMessagingVersion);
-                // pre-4.0 nodes should only receive the address, never port, and it's ok to hardcode VERSION_30
-                inetAddressAndPortSerializer.serialize(from, out, VERSION_30);
-                buffer.flip();
-                return GlobalBufferPoolAllocator.wrap(buffer);
-            }
-            catch (IOException e)
-            {
-                throw new IllegalStateException(e);
-            }
-        }
-
-        @SuppressWarnings("resource")
-        static ConfirmOutboundPre40 maybeDecode(ByteBuf in)
-        {
-            ByteBuffer nio = in.nioBuffer();
-            int start = nio.position();
-            DataInputPlus input = new DataInputBuffer(nio, false);
-            try
-            {
-                int version = input.readInt();
-                InetAddressAndPort address = inetAddressAndPortSerializer.deserialize(input, version);
-                in.skipBytes(nio.position() - start);
-                return new ConfirmOutboundPre40(version, address);
-            }
-            catch (EOFException e)
-            {
-                // makes the assumption we didn't have enough bytes to deserialize an IPv6 address,
-                // as we only check the MIN_LENGTH of the buf.
-                return null;
-            }
-            catch (IOException e)
-            {
-                throw new IllegalStateException(e);
-            }
-        }
-
-        @VisibleForTesting
-        @Override
-        public boolean equals(Object other)
-        {
-            if (!(other instanceof ConfirmOutboundPre40))
-                return false;
-
-            ConfirmOutboundPre40 that = (ConfirmOutboundPre40) other;
-            return this.maxMessagingVersion == that.maxMessagingVersion
-                   && Objects.equals(this.from, that.from);
-        }
-
-        @Override
-        public String toString()
-        {
-            return String.format("ConfirmOutboundPre40(maxMessagingVersion: %d; address: %s)", maxMessagingVersion, from);
         }
     }
 

@@ -43,8 +43,6 @@ import org.apache.cassandra.utils.FreeRunningClock;
 import org.apache.cassandra.utils.TimeUUID;
 
 import static org.apache.cassandra.net.Message.serializer;
-import static org.apache.cassandra.net.MessagingService.VERSION_3014;
-import static org.apache.cassandra.net.MessagingService.VERSION_30;
 import static org.apache.cassandra.net.MessagingService.VERSION_40;
 import static org.apache.cassandra.net.NoPayload.noPayload;
 import static org.apache.cassandra.net.ParamType.RESPOND_TO;
@@ -103,8 +101,6 @@ public class MessageTest
                    .withParam(TRACE_SESSION, nextTimeUUID())
                    .build();
 
-        testInferMessageSize(msg, VERSION_30);
-        testInferMessageSize(msg, VERSION_3014);
         testInferMessageSize(msg, VERSION_40);
     }
 
@@ -264,8 +260,6 @@ public class MessageTest
 
     private void testCycle(Message msg) throws IOException
     {
-        testCycle(msg, VERSION_30);
-        testCycle(msg, VERSION_3014);
         testCycle(msg, VERSION_40);
     }
 
