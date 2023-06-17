@@ -52,7 +52,6 @@ export TMPDIR="${DIST_DIR}/tmp"
 
 # pre-conditions
 command -v ant >/dev/null 2>&1 || { echo >&2 "ant needs to be installed"; exit 1; }
-command -v pip3 >/dev/null 2>&1 || { echo >&2 "pip3 needs to be installed"; exit 1; }
 command -v virtualenv >/dev/null 2>&1 || { echo >&2 "virtualenv needs to be installed"; exit 1; }
 [ -f "${CASSANDRA_DIR}/build.xml" ] || { echo >&2 "${CASSANDRA_DIR}/build.xml must exist"; exit 1; }
 [ -d "${DIST_DIR}" ] || { mkdir -p "${DIST_DIR}" ; }
@@ -75,7 +74,6 @@ python_version=$(python -V | awk '{print $2}' | awk -F'.' '{print $1"."$2}')
 java -version
 ant -version
 python --version
-pip3 --version
 virtualenv --version
 
 # cheap trick to ensure dependency libraries are in place. allows us to stash only project specific build artifacts.

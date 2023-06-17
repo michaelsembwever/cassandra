@@ -28,7 +28,6 @@
 
 # pre-conditions
 command -v ant >/dev/null 2>&1 || { echo >&2 "ant needs to be installed"; exit 1; }
-command -v pip >/dev/null 2>&1 || { echo >&2 "pip needs to be installed"; exit 1; }
 command -v git >/dev/null 2>&1 || { echo >&2 "git needs to be installed"; exit 1; }
 command -v rpmbuild >/dev/null 2>&1 || { echo >&2 "rpm-build needs to be installed"; exit 1; }
 [ -d "${CASSANDRA_DIR}" ] || { echo >&2 "Directory ${CASSANDRA_DIR} must exist"; exit 1; }

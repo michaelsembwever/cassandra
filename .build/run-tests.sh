@@ -38,7 +38,6 @@ command -v git >/dev/null 2>&1 || { echo >&2 "git needs to be installed"; exit 1
 # print debug information on versions
 ant -version
 git --version
-pip --version
 java -version
 javac -version
 
