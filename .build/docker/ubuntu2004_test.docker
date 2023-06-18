@@ -15,9 +15,9 @@ MAINTAINER Apache Cassandra <dev@cassandra.apache.org>
 
 # CONTEXT is expected to be cassandra/.build
 
-ENV DIST_DIR=/dist
 ENV BUILD_HOME=/home/cassandra
 ENV CASSANDRA_DIR=$BUILD_HOME/cassandra
+ENV DIST_DIR=$CASSANDRA_DIR/build
 ENV LANG=en_US.UTF-8
 ENV LC_CTYPE=en_US.UTF-8
 ENV PYTHONIOENCODING=utf-8
@@ -25,8 +25,8 @@ ENV PYTHONUNBUFFERED=true
 
 LABEL org.cassandra.buildenv=ubuntu_2004
 
-VOLUME ${DIST_DIR}
 VOLUME ${CASSANDRA_DIR}
+VOLUME ${DIST_DIR}
 
 RUN echo "Building with arguments:" \
     && echo " - DIST_DIR=${DIST_DIR}" \

@@ -1102,6 +1102,9 @@
     <attribute name="showoutput" default="false"/>
 
     <sequential>
+      <fail message="testing with build.test.dir (${build.test.dir}) not pointing to 'build/test/' will fail, test configurations are hardcoded.">
+        <condition><not><equals arg1="${build.test.dir}" arg2="${basedir}/build/test"/></not></condition>
+      </fail>
       <condition property="additionalagent"
                  value="-javaagent:${build.dir.lib}/jars/jacocoagent.jar=destfile=${jacoco.partialexecfile}"
                  else="">

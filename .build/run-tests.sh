@@ -26,25 +26,24 @@ set -o pipefail
 
 # variables, with defaults
 [ "x${CASSANDRA_DIR}" != "x" ] || CASSANDRA_DIR="$(readlink -f $(dirname "$0")/..)"
-[ "x${DIST_DIR}" != "x" ] || DIST_DIR="${CASSANDRA_DIR}/build"
 
 # pre-conditions
 command -v ant >/dev/null 2>&1 || { echo >&2 "ant needs to be installed"; exit 1; }
 command -v git >/dev/null 2>&1 || { echo >&2 "git needs to be installed"; exit 1; }
 [ -d "${CASSANDRA_DIR}" ] || { echo >&2 "Directory ${CASSANDRA_DIR} must exist"; exit 1; }
 [ -f "${CASSANDRA_DIR}/build.xml" ] || { echo >&2 "${CASSANDRA_DIR}/build.xml must exist"; exit 1; }
-[ -d "${DIST_DIR}" ] || { mkdir -p "${DIST_DIR}" ; }
+[ -d "${CASSANDRA_DIR}/build" ] || { mkdir -p "${CASSANDRA_DIR}/build" ; }
 
 # print debug information on versions
 ant -version
 git --version
-java -version
-javac -version
+java -version  2>&1
+javac -version  2>&1
 
 # lists all tests for the specific test type
 _list_tests() {
   local -r classlistprefix="$1"
-  find "test/$classlistprefix" -name '*Test.java' | sed "s;^test/$classlistprefix/;;g" | sort
+  find "test/${classlistprefix}" -name '*Test.java' | sed "s;^test/${classlistprefix}/;;g" | sort
 }
 
 _split_tests() {
@@ -62,7 +61,7 @@ _split_tests() {
 }
 
 _timeout_for() {
-  grep "name=\"$1\"" build.xml | awk -F'"' '{print $4}'
+  grep "name=\"${1}\"" build.xml | awk -F'"' '{print $4}'
 }
 
 _build_all_dtest_jars() {
@@ -77,18 +76,18 @@ _build_all_dtest_jars() {
     for branch in cassandra-4.0 cassandra-4.1 trunk ; do
         git checkout $branch
         dtest_jar_version=$(grep 'property\s*name=\"base.version\"' build.xml |sed -ne 's/.*value=\"\([^"]*\)\".*/\1/p')
-        if [ -f "${DIST_DIR}/dtest-${dtest_jar_version}.jar" ] ; then
-            echo "Skipping dtest jar build for branch $branch as ${DIST_DIR}/dtest-${dtest_jar_version}.jar already exists"
+        if [ -f "${CASSANDRA_DIR}/build/dtest-${dtest_jar_version}.jar" ] ; then
+            echo "Skipping dtest jar build for branch ${branch} as ${CASSANDRA_DIR}/build/dtest-${dtest_jar_version}.jar already exists"
             continue
         fi
         # redefine the build.dir to local build folder, rightmost definition wins with java command line system properties
         ant realclean -Dbuild.dir=${TMP_DIR}/cassandra-dtest-jars/build
         ant jar dtest-jar ${ANT_TEST_OPTS} -Dbuild.dir=${TMP_DIR}/cassandra-dtest-jars/build
-        cp "${TMP_DIR}/cassandra-dtest-jars/build/dtest-${dtest_jar_version}.jar" ${DIST_DIR}/
+        cp "${TMP_DIR}/cassandra-dtest-jars/build/dtest-${dtest_jar_version}.jar" ${CASSANDRA_DIR}/build/
     done
     popd >/dev/null
     popd >/dev/null
-    ls -l ${DIST_DIR}/dtest*.jar
+    ls -l ${CASSANDRA_DIR}/build/dtest*.jar
     unset CASSANDRA_USE_JDK11
 }
 
@@ -99,18 +98,18 @@ _run_testlist() {
     local _test_timeout=$4
     testlist="$( _list_tests "${_target_prefix}" | _split_tests "${_split_chunk}")"
     if [[ "${_split_chunk}" =~ ^[0-9]+/[0-9]+$ ]]; then
-      if [[ -z "$testlist" ]]; then
+      if [[ -z "${testlist}" ]]; then
         # something has to run in the split to generate a junit xml result
         echo "Hacking ${_target_prefix} ${_testlist_target} to run only first test found as no tests in split ${_split_chunk} were found"
         testlist="$( _list_tests "${_target_prefix}" | head -n1)"
       fi
     else
-      if [[ -z "$testlist" ]]; then
+      if [[ -z "${testlist}" ]]; then
         echo "No tests match ${_split_chunk}"
         exit 1
       fi
     fi
-    ant $_testlist_target -Dtest.classlistprefix="${_target_prefix}" -Dtest.classlistfile=<(echo "${testlist}") -Dtest.timeout="${_test_timeout}" ${ANT_TEST_OPTS} || echo "failed ${_target_prefix} ${_testlist_target}  $split_chunk"
+    ant $_testlist_target -Dtest.classlistprefix="${_target_prefix}" -Dtest.classlistfile=<(echo "${testlist}") -Dtest.timeout="${_test_timeout}" ${ANT_TEST_OPTS} || echo "failed ${_target_prefix} ${_testlist_target}  ${split_chunk}"
 }
 
 _main() {
@@ -143,10 +142,10 @@ _main() {
   fi
 
   # check project is already built. no cleaning is done, so jenkins unstash works, beware.
-  [[ -f "${DIST_DIR}/apache-cassandra-${version}.jar" ]] || [[ -f "${DIST_DIR}/apache-cassandra-${version}-SNAPSHOT.jar" ]] || { echo "Project must be built first. Use \`ant jar\`. Build directory is ${DIST_DIR} with: $(ls ${DIST_DIR})"; exit 1; }
+  [[ -f "${CASSANDRA_DIR}/build/apache-cassandra-${version}.jar" ]] || [[ -f "${CASSANDRA_DIR}/build/apache-cassandra-${version}-SNAPSHOT.jar" ]] || { echo "Project must be built first. Use \`ant jar\`. Build directory is ${CASSANDRA_DIR}/build with: $(ls ${CASSANDRA_DIR}/build)"; exit 1; }
 
   # ant test setup
-  export TMP_DIR="${DIST_DIR}/tmp"
+  export TMP_DIR="${CASSANDRA_DIR}/build/tmp"
   mkdir -p "${TMP_DIR}" || true
   export ANT_TEST_OPTS="-Dno-build-test=true -Dtmp.dir=${TMP_DIR} -Drat.skip=true -Dno-checkstyle=true -Dno-javadoc=true -Dant.gen-doc.skip=true"
 
@@ -157,12 +156,12 @@ _main() {
     "stress-test")
       # hard fail on test compilation, but dont fail the test run as unstable test reports are processed
       ant stress-build-test ${ANT_TEST_OPTS}
-      ant $target ${ANT_TEST_OPTS} || echo "failed $target $split_chunk"
+      ant $target ${ANT_TEST_OPTS} || echo "failed ${target} ${split_chunk}"
       ;;
     "fqltool-test")
       # hard fail on test compilation, but dont fail the test run so unstable test reports are processed
       ant fqltool-build-test ${ANT_TEST_OPTS}
-      ant $target ${ANT_TEST_OPTS} || echo "failed $target $split_chunk"
+      ant $target ${ANT_TEST_OPTS} || echo "failed ${target} ${split_chunk}"
       ;;
     "microbench")
       ant $target ${ANT_TEST_OPTS} -Dmaven.test.failure.ignore=true
@@ -189,23 +188,23 @@ _main() {
           echo Hacking jvm-dtest to run only first test found as no tests in split ${split_chunk} were found
           testlist="$( _list_tests "distributed"  | grep -v "upgrade" | head -n1)"
       fi
-      ant testclasslist -Dtest.classlistprefix=distributed -Dtest.timeout=$(_timeout_for "test.distributed.timeout") -Dtest.classlistfile=<(echo "${testlist}") ${ANT_TEST_OPTS} || echo "failed ${target} $split_chunk"
+      ant testclasslist -Dtest.classlistprefix=distributed -Dtest.timeout=$(_timeout_for "test.distributed.timeout") -Dtest.classlistfile=<(echo "${testlist}") ${ANT_TEST_OPTS} || echo "failed ${target} ${split_chunk}"
       ;;
     "jvm-dtest-upgrade")
       _build_all_dtest_jars
       testlist=$( _list_tests "distributed"  | grep "upgrade" | _split_tests "${split_chunk}")
-      if [[ -z "$testlist" ]]; then
+      if [[ -z "${testlist}" ]]; then
           # something has to run in the split to generate a junit xml result
           echo Hacking jvm-dtest-upgrade to run only first test found as no tests in split ${split_chunk} were found
           testlist="$( _list_tests "distributed"  | grep "upgrade" | head -n1)"
       fi
-      ant testclasslist -Dtest.classlistprefix=distributed -Dtest.timeout=$(_timeout_for "test.distributed.timeout") -Dtest.classlistfile=<(echo "${testlist}") ${ANT_TEST_OPTS} || echo "failed ${target} $split_chunk"
+      ant testclasslist -Dtest.classlistprefix=distributed -Dtest.timeout=$(_timeout_for "test.distributed.timeout") -Dtest.classlistfile=<(echo "${testlist}") ${ANT_TEST_OPTS} || echo "failed ${target} ${split_chunk}"
       ;;
     "cqlsh-test")
       ./pylib/cassandra-cqlsh-tests.sh $(pwd)
       ;;
     *)
-      echo "unregconized \"$target\""
+      echo "unregconized \"${target}\""
       exit 1
       ;;
   esac

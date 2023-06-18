@@ -65,5 +65,5 @@ export JAVA_HOME=$(readlink -f /usr/bin/javac | sed "s:/bin/javac::")
 echo "Cassandra will be built with Java ${java_version}"
 
 # print debug information on versions
-java -version
-javac -version
+java -version 2>&1
+javac -version 2>&1
