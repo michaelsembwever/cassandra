@@ -109,7 +109,7 @@ docker_command="export ANT_OPTS=\"-Dbuild.dir=\${DIST_DIR} ${CASSANDRA_DOCKER_AN
 container_id=$(docker run --name ${container_name} -d --security-opt seccomp=unconfined --rm \
     -v "${cassandra_dir}":/home/build/cassandra -v ~/.m2/repository/:/home/build/.m2/repository/ -v "${build_dir}":/dist \
     ${build_volume_opt} \
-    ${image_name} sleep inf)
+    ${image_name} sleep 1h)
 
 echo "Running container ${container_name} ${container_id}"
     
