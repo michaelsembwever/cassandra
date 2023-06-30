@@ -77,8 +77,11 @@ RUN if [ "$(arch)" == "aarch64" ] ; then \
       done \
     fi
 
- RUN tar xvf openjdk-17_bin.tar.gz
- RUN mv jdk-17* /opt/jdk-17
+RUN tar xvf openjdk-17_bin.tar.gz
+RUN mv jdk-17* /opt/jdk-17
+
+RUN alternatives --install /usr/bin/java java /opt/jdk-17/bin/java 3 --family java-17-openjdk.$(arch)
+RUN alternatives --install /usr/bin/javac javac /opt/jdk-17/bin/javac 3 --family java-17-openjdk.$(arch)
 
 # python3 is needed for the gen-doc target
 RUN pip3 install --upgrade pip
