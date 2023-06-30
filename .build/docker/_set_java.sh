@@ -49,6 +49,12 @@ if [[ ! "$java_version" =~ $regx_java_version ]]; then
    exit 1
 fi
 
+# TODO – remove after CASSANDRA-18255
+if [ "$java_version" == "1.8" ]; then
+   echo "Error: Java 8 is not supported, ref CASSANDRA-18255"
+   exit 1
+fi
+
 ################################
 #
 # Main
@@ -58,8 +64,8 @@ fi
 if grep "^ID=" /etc/os-release | grep -q 'debian\|ubuntu' ; then
     sudo update-java-alternatives --set java-1.${java_version}.0-openjdk-$(dpkg --print-architecture)
 else
-    sudo alternatives --set java $(alternatives --display java | grep "family java-${java_version/1.8/1.8.0}-openjdk" | cut -d' ' -f1)
-    sudo alternatives --set javac $(alternatives --display javac | grep "family java-${java_version/1.8/1.8.0}-openjdk" | cut -d' ' -f1)
+    sudo alternatives --set java $(alternatives --display java | grep "family java-${java_version}-openjdk" | cut -d' ' -f1)
+    sudo alternatives --set javac $(alternatives --display javac | grep "family java-${java_version}-openjdk" | cut -d' ' -f1)
 fi
 export JAVA_HOME=$(readlink -f /usr/bin/javac | sed "s:/bin/javac::")
 echo "Cassandra will be built with Java ${java_version}"

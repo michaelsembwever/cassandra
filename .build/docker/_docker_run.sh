@@ -50,7 +50,7 @@ command -v docker >/dev/null 2>&1 || { echo >&2 "docker needs to be installed"; 
 (docker info >/dev/null 2>&1) || { echo >&2 "docker needs to running"; exit 1; }
 [ -f "${cassandra_dir}/build.xml" ] || { echo >&2 "${cassandra_dir}/build.xml must exist"; exit 1; }
 [ -f "${cassandra_dir}/.build/docker/${dockerfile}" ] || { echo >&2 "${cassandra_dir}/.build/docker/${dockerfile} must exist"; exit 1; }
-[ -f "${cassandra_dir}/.build/docker/${run_script}" ] || { echo >&2 "${cassandra_dir}/.build/docker/${run_script} must exist"; exit 1; }
+[ -f "${cassandra_dir}/.build/${run_script}" ] || { echo >&2 "${cassandra_dir}/.build/${run_script} must exist"; exit 1; }
 [ "${build_dir:0:1}" == "/" ] || { echo >&2 "\$build_dir must be provided as an absolute path, was ${build_dir}"; exit 1; }
 
 if [ "x${java_version}" == "x" ] ; then
@@ -94,7 +94,8 @@ fi
 
 # Run build script through docker
 random_string="$(LC_ALL=C tr -dc A-Za-z0-9 </dev/urandom | head -c 6 ; echo '')"
-container_name="cassandra_${dockerfile/.docker/}_${run_script/.sh/}_jdk${java_version}__${random_string}"
+run_script_name=$(echo ${run_script} | sed  's/.sh//' | sed 's/_//')
+container_name="cassandra_${dockerfile/.docker/}_${un_script_name}_jdk${java_version}__${random_string}"
 
 # Docker commands:
 #  change ant's build directory to $DIST_DIR

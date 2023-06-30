@@ -28,6 +28,9 @@
 # pre-conditions
 command -v ant >/dev/null 2>&1 || { echo >&2 "ant needs to be installed"; exit 1; }
 command -v git >/dev/null 2>&1 || { echo >&2 "git needs to be installed"; exit 1; }
+command -v dch >/dev/null 2>&1 || { echo >&2 "dch needs to be installed"; exit 1; }
+command -v dpkg-parsechangelog >/dev/null 2>&1 || { echo >&2 "dpkg-parsechangelog needs to be installed"; exit 1; }
+command -v dpkg-buildpackage >/dev/null 2>&1 || { echo >&2 "dpkg-buildpackage needs to be installed"; exit 1; }
 [ -d "${CASSANDRA_DIR}" ] || { echo >&2 "Directory ${CASSANDRA_DIR} must exist"; exit 1; }
 [ -f "${CASSANDRA_DIR}/build.xml" ] || { echo >&2 "${CASSANDRA_DIR}/build.xml must exist"; exit 1; }
 [ -d "${DIST_DIR}" ] || mkdir -p "${DIST_DIR}"
