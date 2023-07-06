@@ -32,6 +32,9 @@
 %define upstream_version %(echo %{version} | sed -r 's/~/-/g')
 %define relname apache-cassandra-%{upstream_version}
 
+# default DIST_DIR to build
+%global _get_dist_dir %(echo "${DIST_DIR:-build}")
+
 Name:          cassandra
 Version:       %{version}
 Release:       %{revision}
@@ -115,10 +118,10 @@ cp -p redhat/default %{buildroot}/%{_sysconfdir}/default/%{username}
 cp -pr lib/* %{buildroot}/usr/share/%{username}/lib/
 
 # copy stress jar
-cp -p %{build_dir}/tools/lib/stress.jar %{buildroot}/usr/share/%{username}/
+cp -p %{_get_dist_dir}/tools/lib/stress.jar %{buildroot}/usr/share/%{username}/
 
 # copy fqltool jar
-cp -p %{build_dir}/tools/lib/fqltool.jar %{buildroot}/usr/share/%{username}/
+cp -p %{_get_dist_dir}/tools/lib/fqltool.jar %{buildroot}/usr/share/%{username}/
 
 # copy binaries
 mv bin/cassandra %{buildroot}/usr/sbin/
@@ -126,7 +129,7 @@ cp -p bin/* %{buildroot}/usr/bin/
 cp -p tools/bin/* %{buildroot}/usr/bin/
 
 # copy cassandra jar
-cp %{build_dir}/apache-cassandra-%{upstream_version}.jar %{buildroot}/usr/share/%{username}/
+cp %{_get_dist_dir}/apache-cassandra-%{upstream_version}.jar %{buildroot}/usr/share/%{username}/
 
 %clean
 %{__rm} -rf %{buildroot}

@@ -47,7 +47,7 @@ export TESTSUITE_NAME="cqlshlib.${PYTHON_VERSION}.jdk${java_version}"
 pushd ${CASSANDRA_DIR} >/dev/null
 
 # check project is already built. no cleaning is done, so jenkins unstash works, beware.
-[[ -f "${DIST_DIR}/apache-cassandra-${version}.jar" ]] || [[ -f "${DIST_DIR}/apache-cassandra-${version}-SNAPSHOT.jar" ]] || { echo "Project must be built first. Use \`ant jar\`. Build directory is ${DIST_DIR} with: $(ls ${DIST_DIR})"; exit 1; }
+[[ -f "${BUILD_DIR}/apache-cassandra-${version}.jar" ]] || [[ -f "${BUILD_DIR}/apache-cassandra-${version}-SNAPSHOT.jar" ]] || { echo "Project must be built first. Use \`ant jar\`. Build directory is ${BUILD_DIR} with: $(ls ${BUILD_DIR})"; exit 1; }
 
 # Set up venv with dtest dependencies
 set -e # enable immediate exit if venv setup fails

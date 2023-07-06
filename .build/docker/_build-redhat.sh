@@ -116,7 +116,7 @@ cp ${DIST_DIR}/apache-cassandra-*-src.tar.gz ${RPM_BUILD_DIR}/SOURCES/
 CASSANDRA_VERSION=${CASSANDRA_VERSION/-/\~}
 
 command -v python >/dev/null 2>&1 || alias python=/usr/bin/python3
-rpmbuild --define="version ${CASSANDRA_VERSION}" --define="revision ${CASSANDRA_REVISION}" --define="build_dir ${DIST_DIR}" --define="_topdir ${RPM_BUILD_DIR}" -ba ${RPM_SPEC}
+rpmbuild --define="version ${CASSANDRA_VERSION}" --define="revision ${CASSANDRA_REVISION}" --define="_topdir ${RPM_BUILD_DIR}" -ba ${RPM_SPEC}
 cp ${RPM_BUILD_DIR}/SRPMS/*.rpm ${RPM_BUILD_DIR}/RPMS/noarch/*.rpm ${DIST_DIR}
 
 popd >/dev/null
