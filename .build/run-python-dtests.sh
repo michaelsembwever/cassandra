@@ -37,18 +37,17 @@ DTEST_SPLIT_CHUNK="$2"
 [ "x${CASSANDRA_DTEST_DIR}" != "x" ] || CASSANDRA_DTEST_DIR="${CASSANDRA_DIR}/../cassandra-dtest"
 [ "x${DIST_DIR}" != "x" ] || DIST_DIR="${CASSANDRA_DIR}/build"
 
-export CASSANDRA_HOME=${DIST_DIR}/dist
 export PYTHONIOENCODING="utf-8"
 export PYTHONUNBUFFERED=true
 export CASS_DRIVER_NO_EXTENSIONS=true
 export CASS_DRIVER_NO_CYTHON=true
 export CCM_MAX_HEAP_SIZE="1024M"
 export CCM_HEAP_NEWSIZE="512M"
-export CCM_CONFIG_DIR=${CASSANDRA_DIR}/build/.ccm
+export CCM_CONFIG_DIR=${DIST_DIR}/.ccm
 export NUM_TOKENS="16"
 #Have Cassandra skip all fsyncs to improve test performance and reliability
 export CASSANDRA_SKIP_SYNC=true
-export TMPDIR="${DIST_DIR}/tmp"
+export TMPDIR="$(mktemp -d /tmp/run-python-dtest.XXXXXX)"
 
 # pre-conditions
 command -v ant >/dev/null 2>&1 || { echo >&2 "ant needs to be installed"; exit 1; }
@@ -70,6 +69,9 @@ python_version=$(python -V | awk '{print $2}' | awk -F'.' '{print $1"."$2}')
 # check project is already built. no cleaning is done, so jenkins unstash works, beware.
 [[ -f "${DIST_DIR}/apache-cassandra-${version}.jar" ]] || [[ -f "${DIST_DIR}/apache-cassandra-${version}-SNAPSHOT.jar" ]] || { echo "Project must be built first. Use \`ant jar\`. Build directory is ${DIST_DIR} with: $(ls ${DIST_DIR})"; exit 1; }
 
+# check if dist artifacts exist, this breaks the dtests
+[[ -d "${DIST_DIR}/dist" ]] && { echo "dtests don't work when build/dist ("${DIST_DIR}/dist") exists (from \`ant artifacts\`)"; exit 1; }
+
 # print debug information on versions
 java -version
 ant -version
@@ -81,10 +83,12 @@ ant -quiet -silent resolver-dist-lib
 
 # Set up venv with dtest dependencies
 set -e # enable immediate exit if venv setup fails
-# fresh virtualenv everytime
-rm -fr ${DIST_DIR}/venv
+
+# fresh virtualenv and test logs results everytime
+rm -rf ${DIST_DIR}/venv ${DIST_DIR}/test/{html,output,logs}
+
 # re-use when possible the pre-installed virtualenv found in the cassandra-ubuntu2004_test docker image
-virtualenv-clone ${BUILD_HOME}/env${python_version} ${DIST_DIR}/venv || virtualenv ${DIST_DIR}/venv
+virtualenv-clone ${BUILD_HOME}/env${python_version} ${DIST_DIR}/venv || virtualenv --python=python${python_version} ${DIST_DIR}/venv
 source ${DIST_DIR}/venv/bin/activate
 pip3 install --exists-action w -r ${CASSANDRA_DTEST_DIR}/requirements.txt
 pip3 freeze
@@ -96,7 +100,7 @@ pip3 freeze
 ################################
 
 cd ${CASSANDRA_DTEST_DIR}
-mkdir -p ${TMPDIR}
+
 set +e # disable immediate exit from this point
 if [ "${DTEST_TARGET}" = "dtest" ]; then
     DTEST_ARGS="--use-vnodes --num-tokens=${NUM_TOKENS} --skip-resource-intensive-tests --keep-failed-test-dir"
@@ -131,11 +135,14 @@ else
 fi
 
 
-PYTEST_OPTS="-vv --log-cli-level=DEBUG --junit-xml=nosetests.xml --junit-prefix=${DTEST_TARGET} -s"
+PYTEST_OPTS="-vv --log-cli-level=DEBUG --junit-xml=${DIST_DIR}/test/output/nosetests.xml --junit-prefix=${DTEST_TARGET} -s"
 pytest ${PYTEST_OPTS} --cassandra-dir=${CASSANDRA_DIR} ${DTEST_ARGS} ${SPLIT_TESTS} 2>&1 | tee -a ${DIST_DIR}/test_stdout.txt
 
 # tar up any ccm logs for easy retrieval
-tar -cJf ccm_logs.tar.xz ${TMPDIR}/*/test/*/logs/*
+if ls ${TMPDIR}/test/*/logs/* &>/dev/null ; then
+    mkdir -p ${DIST_DIR}/test/logs
+    tar -C ${TMPDIR} -cJf ${DIST_DIR}/test/logs/ccm_logs.tar.xz */test/*/logs/*
+fi
 
 # merge all unit xml files into one, and print summary test numbers
 pushd ${CASSANDRA_DIR}/ >/dev/null
@@ -151,7 +158,8 @@ popd  >/dev/null
 #
 ################################
 
-# /virtualenv
+rm -rf ${TMPDIR}
+unset TMPDIR
 deactivate
 
 # Exit cleanly for usable "Unstable" status

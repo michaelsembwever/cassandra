@@ -80,6 +80,7 @@ pushd ${cassandra_dir}/.build >/dev/null
 dockerfile="ubuntu2004_test.docker"
 image_tag="$(md5sum docker/${dockerfile} | cut -d' ' -f1)"
 image_name="apache/cassandra-${dockerfile/.docker/}:${image_tag}"
+docker_mounts="-v ${cassandra_dir}:/home/cassandra/cassandra -v "${build_dir}":/home/cassandra/cassandra/build -v ${HOME}/.m2/repository:/home/cassandra/.m2/repository"
 
 # Look for existing docker image, otherwise build
 timeout -k 5 5 docker login >/dev/null 2>/dev/null
@@ -179,7 +180,6 @@ random_string="$(LC_ALL=C tr -dc A-Za-z0-9 </dev/urandom | head -c 6 ; echo '')"
 
 container_name="cassandra_${dockerfile/.docker/}_${target}_jdk${java_version/./-}_arch-$(arch)_python${python_version/./-}_${split_str}__${random_string}"
 
-docker_mounts="-v ${cassandra_dir}:/home/cassandra/cassandra -v "${build_dir}":/home/cassandra/cassandra/build -v ${HOME}/.m2/repository:/home/cassandra/.m2/repository"
 logfile="${build_dir}/test/logs/docker_attach_${container_name}.log"
 
 # Docker commands:
@@ -211,14 +211,6 @@ if [ "$status" -ne 0 ] ; then
     docker info
     echo "–––"
     echo "Failure."
-else
-    # pull from the container all logs and results we might need
-    echo "${docker_id} done (status=${status}), copying files…"
-    case ${target} in "dtest" | "dtest-novnode" | "dtest-offheap" | "dtest-large" | "dtest-large-novnode" | "dtest-upgrade" )
-        docker cp ${docker_id}:/home/cassandra/cassandra-dtest/nosetests.xml ${build_dir}/test/output/  2>/dev/null
-        docker cp ${docker_id}:/home/cassandra/cassandra-dtest/ccm_logs.tar.xz ${build_dir}/  2>/dev/null
-    esac
-    echo "Completed."
 fi
 # docker stop in background, ignore errors
 ( nohup docker stop ${docker_id} >/dev/null 2>/dev/null & )

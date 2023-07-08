@@ -68,6 +68,7 @@ Build in docker with a specific jdk:
     .build/docker/build-debian.sh 11
     .build/docker/build-redhat.sh 11
 
+
 Build in docker with centos7 and a specific jdk:
 
     .build/docker/build-redhat.sh noboolean 11
@@ -80,17 +81,21 @@ Running unit tests with docker:
 
     .build/docker/run-tests.sh test
 
+
 Running unittests without docker:
 
     .build/run-tests.sh test
+
 
 Running only a split of unittests, with docker:
 
     .build/docker/run-tests.sh test 1/64
 
+
 Running unittests with a specific jdk with docker:
 
     .build/docker/run-tests.sh test 1/64 11
+
 
 Running only unit tests matching a regexp, with docker:
 
@@ -116,4 +121,14 @@ Running other types of tests with docker:
     .build/docker/run-tests.sh dtest-large
     .build/docker/run-tests.sh dtest-large-novnode
     .build/docker/run-tests.sh dtest-upgrade
+
+
+Running python dtests without docker:
+
+    .build/docker/run-python-dtests.sh dtest
+
+
+Other test types without docker:
+
+    .build/docker/run-tests.sh test
 

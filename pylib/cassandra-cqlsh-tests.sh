@@ -26,8 +26,7 @@
 WORKSPACE=$1
 
 [ "x${WORKSPACE}" != "x" ] || WORKSPACE="$(readlink -f $(dirname "$0")/..)"
-
-PYTHON_VERSION=python3
+[ "x${BUILD_DIR}" != "x" ] || BUILD_DIR="${WORKSPACE}/build"
 
 export PYTHONIOENCODING="utf-8"
 export PYTHONUNBUFFERED=true
@@ -35,14 +34,18 @@ export CASS_DRIVER_NO_EXTENSIONS=true
 export CASS_DRIVER_NO_CYTHON=true
 export CCM_MAX_HEAP_SIZE="2048M"
 export CCM_HEAP_NEWSIZE="200M"
-export CCM_CONFIG_DIR=${WORKSPACE}/.ccm
+export CCM_CONFIG_DIR=${BUILD_DIR}/.ccm
 export NUM_TOKENS="16"
 export CASSANDRA_DIR=${WORKSPACE}
-[ "x${BUILD_DIR}" != "x" ] || BUILD_DIR="${CASSANDRA_DIR}/build"
+export TMPDIR="$(mktemp -d /tmp/run-python-dtest.XXXXXX)"
 
 java_version=$(java -version 2>&1 | awk -F '"' '/version/ {print $2}' | awk -F. '{print $1}')
 version=$(grep 'property\s*name=\"base.version\"' ${CASSANDRA_DIR}/build.xml |sed -ne 's/.*value=\"\([^"]*\)\".*/\1/p')
-export TESTSUITE_NAME="cqlshlib.${PYTHON_VERSION}.jdk${java_version}"
+
+python_version="3.6"
+command -v python3 >/dev/null 2>&1 && python_version="$(python3 -V | awk '{print $2}' | awk -F'.' '{print $1"."$2}')"
+
+export TESTSUITE_NAME="cqlshlib.python${python_version}.jdk${java_version}"
 
 pushd ${CASSANDRA_DIR} >/dev/null
 
@@ -51,13 +54,15 @@ pushd ${CASSANDRA_DIR} >/dev/null
 
 # Set up venv with dtest dependencies
 set -e # enable immediate exit if venv setup fails
-[ -d ${CASSANDRA_DIR}/venv ] || mkdir -p build/venv
-virtualenv --python=$PYTHON_VERSION build/venv
-source build/venv/bin/activate
-# 3.11 needs the newest pip
-curl -sS https://bootstrap.pypa.io/get-pip.py | $PYTHON_VERSION
 
-pip install -r ${CASSANDRA_DIR}/pylib/requirements.txt
+# fresh virtualenv and test logs results everytime
+rm -fr ${DIST_DIR}/venv ${DIST_DIR}/test/{html,output,logs}
+
+# re-use when possible the pre-installed virtualenv found in the cassandra-ubuntu2004_test docker image
+virtualenv-clone ${BUILD_HOME}/env${python_version} ${BUILD_DIR}/venv || virtualenv --python=python3 ${BUILD_DIR}/venv
+source ${BUILD_DIR}/venv/bin/activate
+
+pip install --exists-action w -r ${CASSANDRA_DIR}/pylib/requirements.txt
 pip freeze
 
 if [ "$cython" = "yes" ]; then
@@ -115,6 +120,12 @@ cat /tmp/cqlshlib.xml > ${BUILD_DIR}/test/output/cqlshlib.xml
 sed "s/testcase classname=\"cqlshlib./testcase classname=\"${TESTSUITE_NAME}./g" ${BUILD_DIR}/test/output/cqlshlib.xml > /tmp/cqlshlib.xml
 cat /tmp/cqlshlib.xml > ${BUILD_DIR}/test/output/cqlshlib.xml
 
+# tar up any ccm logs for easy retrieval
+if ls ${TMPDIR}/test/*/logs/* &>/dev/null ; then
+    mkdir -p ${DIST_DIR}/test/logs
+    tar -C ${TMPDIR} -cJf ${DIST_DIR}/test/logs/ccm_logs.tar.xz */test/*/logs/*
+fi
+
 ccm remove
 
 ################################
@@ -123,7 +134,9 @@ ccm remove
 #
 ################################
 
-# /virtualenv
+
+rm -rf ${TMPDIR}
+unset TMPDIR
 deactivate
 popd >/dev/null
 popd >/dev/null

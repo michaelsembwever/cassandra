@@ -26,13 +26,14 @@ set -o pipefail
 
 # variables, with defaults
 [ "x${CASSANDRA_DIR}" != "x" ] || CASSANDRA_DIR="$(readlink -f $(dirname "$0")/..)"
+[ "x${DIST_DIR}" != "x" ] || DIST_DIR="${CASSANDRA_DIR}/build"
 
 # pre-conditions
 command -v ant >/dev/null 2>&1 || { echo >&2 "ant needs to be installed"; exit 1; }
 command -v git >/dev/null 2>&1 || { echo >&2 "git needs to be installed"; exit 1; }
 [ -d "${CASSANDRA_DIR}" ] || { echo >&2 "Directory ${CASSANDRA_DIR} must exist"; exit 1; }
 [ -f "${CASSANDRA_DIR}/build.xml" ] || { echo >&2 "${CASSANDRA_DIR}/build.xml must exist"; exit 1; }
-[ -d "${CASSANDRA_DIR}/build" ] || { mkdir -p "${CASSANDRA_DIR}/build" ; }
+[ -d "${DIST_DIR}" ] || { mkdir -p "${DIST_DIR}" ; }
 
 # print debug information on versions
 ant -version
@@ -76,18 +77,18 @@ _build_all_dtest_jars() {
     for branch in cassandra-4.0 cassandra-4.1 trunk ; do
         git checkout $branch
         dtest_jar_version=$(grep 'property\s*name=\"base.version\"' build.xml |sed -ne 's/.*value=\"\([^"]*\)\".*/\1/p')
-        if [ -f "${CASSANDRA_DIR}/build/dtest-${dtest_jar_version}.jar" ] ; then
-            echo "Skipping dtest jar build for branch ${branch} as ${CASSANDRA_DIR}/build/dtest-${dtest_jar_version}.jar already exists"
+        if [ -f "${DIST_DIR}/dtest-${dtest_jar_version}.jar" ] ; then
+            echo "Skipping dtest jar build for branch ${branch} as ${DIST_DIR}/dtest-${dtest_jar_version}.jar already exists"
             continue
         fi
         # redefine the build.dir to local build folder, rightmost definition wins with java command line system properties
         ant realclean -Dbuild.dir=${TMP_DIR}/cassandra-dtest-jars/build
         ant jar dtest-jar ${ANT_TEST_OPTS} -Dbuild.dir=${TMP_DIR}/cassandra-dtest-jars/build
-        cp "${TMP_DIR}/cassandra-dtest-jars/build/dtest-${dtest_jar_version}.jar" ${CASSANDRA_DIR}/build/
+        cp "${TMP_DIR}/cassandra-dtest-jars/build/dtest-${dtest_jar_version}.jar" ${DIST_DIR}/
     done
     popd >/dev/null
     popd >/dev/null
-    ls -l ${CASSANDRA_DIR}/build/dtest*.jar
+    ls -l ${DIST_DIR}/dtest*.jar
     unset CASSANDRA_USE_JDK11
 }
 
@@ -142,12 +143,15 @@ _main() {
   fi
 
   # check project is already built. no cleaning is done, so jenkins unstash works, beware.
-  [[ -f "${CASSANDRA_DIR}/build/apache-cassandra-${version}.jar" ]] || [[ -f "${CASSANDRA_DIR}/build/apache-cassandra-${version}-SNAPSHOT.jar" ]] || { echo "Project must be built first. Use \`ant jar\`. Build directory is ${CASSANDRA_DIR}/build with: $(ls ${CASSANDRA_DIR}/build)"; exit 1; }
+  [[ -f "${DIST_DIR}/apache-cassandra-${version}.jar" ]] || [[ -f "${DIST_DIR}/apache-cassandra-${version}-SNAPSHOT.jar" ]] || { echo "Project must be built first. Use \`ant jar\`. Build directory is ${DIST_DIR} with: $(ls ${DIST_DIR})"; exit 1; }
 
   # ant test setup
-  export TMP_DIR="${CASSANDRA_DIR}/build/tmp"
+  export TMP_DIR="${DIST_DIR}/tmp"
   mkdir -p "${TMP_DIR}" || true
   export ANT_TEST_OPTS="-Dno-build-test=true -Dtmp.dir=${TMP_DIR} -Drat.skip=true -Dno-checkstyle=true -Dno-javadoc=true -Dant.gen-doc.skip=true"
+
+  # fresh virtualenv and test logs results everytime
+  rm -rf ${DIST_DIR}/test/{html,output,logs}
 
   # cheap trick to ensure dependency libraries are in place. allows us to stash only project specific build artifacts.
   ant -quiet -silent resolver-dist-lib
