@@ -39,6 +39,8 @@ import static org.apache.cassandra.locator.InetAddressAndPort.FwdFrmSerializer.f
  * will skip over any params it doesn't recognise.
  *
  * Please don't add boolean params here. Extend and use {@link MessageFlag} instead.
+ *
+ * Do not re-use old, nor fill gaps in the sequence of, ids.  New IDs must be higher.
  */
 public enum ParamType
 {

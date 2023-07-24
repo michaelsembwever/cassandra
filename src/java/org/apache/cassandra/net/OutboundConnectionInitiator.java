@@ -334,6 +334,7 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
          * do *not* send out the third message of the internode messaging handshake.
          * We will reconnect on the appropriate protocol version.
          */
+        @SuppressWarnings("unchecked")
         @Override
         protected void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out)
         {

@@ -66,7 +66,6 @@ final class HintsDescriptor
 {
     private static final Logger logger = LoggerFactory.getLogger(HintsDescriptor.class);
 
-    static final int VERSION_30 = 1;
     static final int VERSION_40 = 2;
     static final int VERSION_50 = 3;
     static final int CURRENT_VERSION = DatabaseDescriptor.getStorageCompatibilityMode().isBefore(5) ? VERSION_40 : VERSION_50;
