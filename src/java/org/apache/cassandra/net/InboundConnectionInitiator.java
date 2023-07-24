@@ -480,26 +480,17 @@ public class InboundConnectionInitiator
             {
                 case LZ4:
                 {
-                    if (useMessagingVersion >= VERSION_40)
-                        frameDecoder = FrameDecoderLZ4.fast(allocator);
-                    else
-                        frameDecoder = new FrameDecoderLegacyLZ4(allocator, useMessagingVersion);
+                    frameDecoder = FrameDecoderLZ4.fast(allocator);
                     break;
                 }
                 case CRC:
                 {
-                    if (useMessagingVersion >= VERSION_40)
-                    {
-                        frameDecoder = FrameDecoderCrc.create(allocator);
-                        break;
-                    }
+                    frameDecoder = FrameDecoderCrc.create(allocator);
+                    break;
                 }
                 case UNPROTECTED:
                 {
-                    if (useMessagingVersion >= VERSION_40)
-                        frameDecoder = new FrameDecoderUnprotected(allocator);
-                    else
-                        frameDecoder = new FrameDecoderLegacy(allocator, useMessagingVersion);
+                    frameDecoder = new FrameDecoderUnprotected(allocator);
                     break;
                 }
                 default:

@@ -86,7 +86,7 @@ public class ColumnFilterTest
     @Parameterized.Parameters(name = "{index}: clusterMinVersion={0}")
     public static Collection<Object[]> data()
     {
-        return Arrays.asList(new Object[]{ "3.0" }, new Object[]{ "3.11" }, new Object[]{ "4.0-rc1" }, new Object[]{ "4.0" });
+        return (Collection) Arrays.asList(new Object[]{ "4.0" });
     }
 
     @BeforeClass
@@ -341,15 +341,7 @@ public class ColumnFilterTest
         Consumer<ColumnFilter> check = filter -> {
             testRoundTrips(filter);
             assertFetchedQueried(true, true, filter, v1);
-            if ("3.0".equals(clusterMinVersion))
-            {
-                assertEquals("*/*", filter.toString());
-                assertEquals("*", filter.toCQLString());
-                assertFetchedQueried(true, true, filter, s1, s2, v2);
-                assertCellFetchedQueried(true, true, filter, v2, path0, path1, path2, path3, path4);
-                assertCellFetchedQueried(true, true, filter, s2, path0, path1, path2, path3, path4);
-            }
-            else if ("3.11".equals(clusterMinVersion) || (returnStaticContentOnPartitionWithNoRows && "4.0".equals(clusterMinVersion)))
+            if (returnStaticContentOnPartitionWithNoRows && "4.0".equals(clusterMinVersion))
             {
                 assertEquals("*/[v1]", filter.toString());
                 assertEquals("v1", filter.toCQLString());
@@ -389,15 +381,7 @@ public class ColumnFilterTest
         Consumer<ColumnFilter> check = filter -> {
             testRoundTrips(filter);
             assertFetchedQueried(true, true, filter, s1);
-            if ("3.0".equals(clusterMinVersion))
-            {
-                assertEquals("*/*", filter.toString());
-                assertEquals("*", filter.toCQLString());
-                assertFetchedQueried(true, true, filter, v1, v2, s2);
-                assertCellFetchedQueried(true, true, filter, v2, path0, path1, path2, path3, path4);
-                assertCellFetchedQueried(true, true, filter, s2, path0, path1, path2, path3, path4);
-            }
-            else if ("3.11".equals(clusterMinVersion) || (returnStaticContentOnPartitionWithNoRows && "4.0".equals(clusterMinVersion)))
+            if (returnStaticContentOnPartitionWithNoRows && "4.0".equals(clusterMinVersion))
             {
                 assertEquals("*/[s1]", filter.toString());
                 assertEquals("s1", filter.toCQLString());
@@ -439,15 +423,7 @@ public class ColumnFilterTest
                                           .build();
         testRoundTrips(filter);
         assertFetchedQueried(true, true, filter, v2);
-        if ("3.0".equals(clusterMinVersion))
-        {
-            assertEquals("*/*", filter.toString());
-            assertEquals("*", filter.toCQLString());
-            assertFetchedQueried(true, true, filter, s1, s2, v1);
-            assertCellFetchedQueried(true, true, filter, v2, path0, path1, path2, path3, path4);
-            assertCellFetchedQueried(true, true, filter, s2, path0, path1, path2, path3, path4);
-        }
-        else if ("3.11".equals(clusterMinVersion) || (returnStaticContentOnPartitionWithNoRows && "4.0".equals(clusterMinVersion)))
+        if (returnStaticContentOnPartitionWithNoRows && "4.0".equals(clusterMinVersion))
         {
             assertEquals("*/[v2[1]]", filter.toString());
             assertEquals("v2[1]", filter.toCQLString());
@@ -487,15 +463,7 @@ public class ColumnFilterTest
                                           .build();
         testRoundTrips(filter);
         assertFetchedQueried(true, true, filter, s2);
-        if ("3.0".equals(clusterMinVersion))
-        {
-            assertEquals("*/*", filter.toString());
-            assertEquals("*", filter.toCQLString());
-            assertFetchedQueried(true, true, filter, v1, v2, s1);
-            assertCellFetchedQueried(true, true, filter, v2, path0, path1, path2, path3, path4);
-            assertCellFetchedQueried(true, true, filter, s2, path1, path0, path2, path3, path4);
-        }
-        else if ("3.11".equals(clusterMinVersion) || (returnStaticContentOnPartitionWithNoRows && "4.0".equals(clusterMinVersion)))
+        if (returnStaticContentOnPartitionWithNoRows && "4.0".equals(clusterMinVersion))
         {
             assertEquals("*/[s2[1]]", filter.toString());
             assertEquals("s2[1]", filter.toCQLString());

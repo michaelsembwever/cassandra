@@ -29,28 +29,30 @@ import java.util.concurrent.TimeUnit;
 
 import com.google.common.net.InetAddresses;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions;
 import org.apache.cassandra.config.ParameterizedClass;
+import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.gms.GossipDigestSyn;
+import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.net.OutboundConnectionInitiator.Result.MessagingSuccess;
 import org.apache.cassandra.security.DefaultSslContextFactory;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
+
+import org.assertj.core.api.Assertions;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
-
 import io.netty.channel.EventLoop;
 import io.netty.util.concurrent.Future;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.commitlog.CommitLog;
-import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.net.OutboundConnectionInitiator.Result.MessagingSuccess;
 
 import static org.apache.cassandra.net.MessagingService.VERSION_30;
 import static org.apache.cassandra.net.MessagingService.current_version;
 import static org.apache.cassandra.net.MessagingService.minimum_version;
 import static org.apache.cassandra.net.ConnectionType.SMALL_MESSAGES;
 import static org.apache.cassandra.net.OutboundConnectionInitiator.*;
+
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
@@ -182,40 +184,22 @@ public class HandshakeTest
     @Test
     public void testSendCompatibleOldVersion40() throws InterruptedException, ExecutionException
     {
-        try
-        {
-            Assert.fail(Objects.toString(handshake(VERSION_30, VERSION_30, VERSION_30, VERSION_30, current_version)));
-        }
-        catch (ExecutionException e)
-        {
-            assertTrue(e.getCause() instanceof ClosedChannelException);
-        }
+        Assertions.assertThatThrownBy(() -> Objects.toString(handshake(VERSION_30, VERSION_30, VERSION_30, VERSION_30, current_version)))
+                  .hasRootCauseInstanceOf(ClosedChannelException.class);
     }
 
     @Test
     public void testSendIncompatibleOldVersion40() throws InterruptedException
     {
-        try
-        {
-            Assert.fail(Objects.toString(handshake(VERSION_30, VERSION_30, VERSION_30, current_version, current_version)));
-        }
-        catch (ExecutionException e)
-        {
-            assertTrue(e.getCause() instanceof ClosedChannelException);
-        }
+        Assertions.assertThatThrownBy(() -> Objects.toString(handshake(VERSION_30, VERSION_30, VERSION_30, current_version, current_version)))
+                  .hasRootCauseInstanceOf(ClosedChannelException.class);
     }
 
     @Test // fairly contrived case, but since we introduced logic for testing we need to be careful it doesn't make us worse
     public void testSendToFuturePost40BelievedToBePre40() throws InterruptedException, ExecutionException
     {
-        try
-        {
-            Assert.fail(Objects.toString(handshake(VERSION_30, VERSION_30, current_version, VERSION_30, current_version + 1)));
-        }
-        catch (ExecutionException e)
-        {
-            assertTrue(e.getCause() instanceof ClosedChannelException);
-        }
+        Assertions.assertThatThrownBy(() -> Objects.toString(handshake(VERSION_30, VERSION_30, current_version, VERSION_30, current_version + 1)))
+                  .hasRootCauseInstanceOf(ClosedChannelException.class);
     }
 
     @Test

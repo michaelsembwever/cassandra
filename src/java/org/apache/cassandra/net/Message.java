@@ -708,14 +708,14 @@ public class Message<T>
 
         public <T> void serialize(Message<T> message, DataOutputPlus out, int version) throws IOException
         {
-            serializeHeaderImpl(message.header, out, version);
+            serializeHeader(message.header, out, version);
             out.writeUnsignedVInt32(message.payloadSize(version));
             message.verb().serializer().serialize(message.payload, out, version);
         }
 
         public <T> Message<T> deserialize(DataInputPlus in, InetAddressAndPort peer, int version) throws IOException
         {
-            Header header = deserializeHeaderImpl(in, peer, version);
+            Header header = deserializeHeader(in, peer, version);
             skipUnsignedVInt(in); // payload size, not needed by payload deserializer
             T payload = (T) header.verb.serializer().deserialize(in, version);
             return new Message<>(header, payload);
@@ -728,7 +728,7 @@ public class Message<T>
          */
         public <T> Message<T> deserialize(DataInputPlus in, Header header, int version) throws IOException
         {
-            skipHeaderImpl(in);
+            skipHeader(in);
             skipUnsignedVInt(in); // payload size, not needed by payload deserializer
             T payload = (T) header.verb.serializer().deserialize(in, version);
             return new Message<>(header, payload);
@@ -737,7 +737,7 @@ public class Message<T>
         private <T> int serializedSize(Message<T> message, int version)
         {
             long size = 0;
-            size += serializedHeaderImpl(message.header, version);
+            size += serializedHeader(message.header, version);
             int payloadSize = message.payloadSize(version);
             size += sizeofUnsignedVInt(payloadSize) + payloadSize;
             return Ints.checkedCast(size);
@@ -748,7 +748,7 @@ public class Message<T>
          */
         int inferMessageSize(ByteBuffer buf, int index, int limit, int version) throws InvalidLegacyProtocolMagic
         {
-            int size = inferMessageSizeImpl(buf, index, limit);
+            int size = inferMessageSize(buf, index, limit);
             if (size > DatabaseDescriptor.getInternodeMaxMessageSizeInBytes())
                 throw new OversizedMessageException(size);
             return size;
@@ -798,7 +798,7 @@ public class Message<T>
             return createdAtNanos + expirationPeriodNanos;
         }
 
-        private void serializeHeaderImpl(Header header, DataOutputPlus out, int version) throws IOException
+        private void serializeHeader(Header header, DataOutputPlus out, int version) throws IOException
         {
             out.writeUnsignedVInt(header.id);
             // int cast cuts off the high-order half of the timestamp, which we can assume remains
@@ -810,7 +810,7 @@ public class Message<T>
             serializeParams(header.params, out, version);
         }
 
-        private Header deserializeHeaderImpl(DataInputPlus in, InetAddressAndPort peer, int version) throws IOException
+        private Header deserializeHeader(DataInputPlus in, InetAddressAndPort peer, int version) throws IOException
         {
             long id = in.readUnsignedVInt();
             long currentTimeNanos = approxTime.now();
@@ -823,17 +823,17 @@ public class Message<T>
             return new Header(id, verb, peer, creationTimeNanos, expiresAtNanos, flags, params);
         }
 
-        private void skipHeaderImpl(DataInputPlus in) throws IOException
+        private void skipHeader(DataInputPlus in) throws IOException
         {
             skipUnsignedVInt(in); // id
             in.skipBytesFully(4); // createdAt
             skipUnsignedVInt(in); // expiresIn
             skipUnsignedVInt(in); // verb
             skipUnsignedVInt(in); // flags
-            skipParamsImpl(in); // params
+            skipParams(in); // params
         }
 
-        private int serializedHeaderImpl(Header header, int version)
+        private int serializedHeader(Header header, int version)
         {
             long size = 0;
             size += sizeofUnsignedVInt(header.id);
@@ -845,7 +845,7 @@ public class Message<T>
             return Ints.checkedCast(size);
         }
 
-        private int inferMessageSizeImpl(ByteBuffer buf, int readerIndex, int readerLimit)
+        private int inferMessageSize(ByteBuffer buf, int readerIndex, int readerLimit)
         {
             int index = readerIndex;
 
@@ -873,7 +873,7 @@ public class Message<T>
                 return -1;
             index += flagsSize;
 
-            int paramsSize = extractParamsSizeImpl(buf, index, readerLimit);
+            int paramsSize = extractParamsSize(buf, index, readerLimit);
             if (paramsSize < 0)
                 return -1;
             index += paramsSize;
@@ -1004,7 +1004,7 @@ public class Message<T>
             }
         }
 
-        private void skipParamsImpl(DataInputPlus in) throws IOException
+        private void skipParams(DataInputPlus in) throws IOException
         {
             int count = in.readUnsignedVInt32();
 
@@ -1034,7 +1034,7 @@ public class Message<T>
             return size;
         }
 
-        private int extractParamsSizeImpl(ByteBuffer buf, int readerIndex, int readerLimit)
+        private int extractParamsSize(ByteBuffer buf, int readerIndex, int readerLimit)
         {
             int index = readerIndex;
 
