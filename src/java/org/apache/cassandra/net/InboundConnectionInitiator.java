@@ -341,13 +341,11 @@ public class InboundConnectionInitiator
             {
                 logger.info("peer {} only supports messaging versions higher ({}) than this node supports ({})", ctx.channel().remoteAddress(), initiate.acceptVersions.min, current_version);
                 failHandshake(ctx);
-                return;
             }
             else if (initiate.acceptVersions.max < accept.min)
             {
                 logger.info("peer {} only supports messaging versions lower ({}) than this node supports ({})", ctx.channel().remoteAddress(), initiate.acceptVersions.max, minimum_version);
                 failHandshake(ctx);
-                return;
             }
             else
             {
