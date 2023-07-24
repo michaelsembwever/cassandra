@@ -708,12 +708,17 @@ public class Message<T>
 
         public <T> void serialize(Message<T> message, DataOutputPlus out, int version) throws IOException
         {
-            serializePost40(message, out, version);
+            serializeHeaderImpl(message.header, out, version);
+            out.writeUnsignedVInt32(message.payloadSize(version));
+            message.verb().serializer().serialize(message.payload, out, version);
         }
 
         public <T> Message<T> deserialize(DataInputPlus in, InetAddressAndPort peer, int version) throws IOException
         {
-            return deserializePost40(in, peer, version);
+            Header header = deserializeHeaderImpl(in, peer, version);
+            skipUnsignedVInt(in); // payload size, not needed by payload deserializer
+            T payload = (T) header.verb.serializer().deserialize(in, version);
+            return new Message<>(header, payload);
         }
 
         /**
@@ -723,12 +728,19 @@ public class Message<T>
          */
         public <T> Message<T> deserialize(DataInputPlus in, Header header, int version) throws IOException
         {
-            return deserializePost40(in, header, version);
+            skipHeaderImpl(in);
+            skipUnsignedVInt(in); // payload size, not needed by payload deserializer
+            T payload = (T) header.verb.serializer().deserialize(in, version);
+            return new Message<>(header, payload);
         }
 
         private <T> int serializedSize(Message<T> message, int version)
         {
-            return serializedSizePost40(message, version);
+            long size = 0;
+            size += serializedHeaderImpl(message.header, version);
+            int payloadSize = message.payloadSize(version);
+            size += sizeofUnsignedVInt(payloadSize) + payloadSize;
+            return Ints.checkedCast(size);
         }
 
         /**
@@ -736,7 +748,7 @@ public class Message<T>
          */
         int inferMessageSize(ByteBuffer buf, int index, int limit, int version) throws InvalidLegacyProtocolMagic
         {
-            int size = inferMessageSizePost40(buf, index, limit);
+            int size = inferMessageSizeImpl(buf, index, limit);
             if (size > DatabaseDescriptor.getInternodeMaxMessageSizeInBytes())
                 throw new OversizedMessageException(size);
             return size;
@@ -751,69 +763,6 @@ public class Message<T>
          * It's assumed that the provided buffer contains all the bytes necessary to deserialize the header fully.
          */
         Header extractHeader(ByteBuffer buf, InetAddressAndPort from, long currentTimeNanos, int version) throws IOException
-        {
-            return extractHeaderPost40(buf, from, currentTimeNanos, version);
-        }
-
-        private static long getExpiresAtNanos(long createdAtNanos, long currentTimeNanos, long expirationPeriodNanos)
-        {
-            if (!DatabaseDescriptor.hasCrossNodeTimeout() || createdAtNanos > currentTimeNanos)
-                createdAtNanos = currentTimeNanos;
-            return createdAtNanos + expirationPeriodNanos;
-        }
-
-        /*
-         * 4.0 ser/deser
-         */
-
-        private void serializeHeaderPost40(Header header, DataOutputPlus out, int version) throws IOException
-        {
-            out.writeUnsignedVInt(header.id);
-            // int cast cuts off the high-order half of the timestamp, which we can assume remains
-            // the same between now and when the recipient reconstructs it.
-            out.writeInt((int) approxTime.translate().toMillisSinceEpoch(header.createdAtNanos));
-            out.writeUnsignedVInt(NANOSECONDS.toMillis(header.expiresAtNanos - header.createdAtNanos));
-            out.writeUnsignedVInt32(header.verb.id);
-            out.writeUnsignedVInt32(header.flags);
-            serializeParams(header.params, out, version);
-        }
-
-        private Header deserializeHeaderPost40(DataInputPlus in, InetAddressAndPort peer, int version) throws IOException
-        {
-            long id = in.readUnsignedVInt();
-            long currentTimeNanos = approxTime.now();
-            MonotonicClockTranslation timeSnapshot = approxTime.translate();
-            long creationTimeNanos = calculateCreationTimeNanos(in.readInt(), timeSnapshot, currentTimeNanos);
-            long expiresAtNanos = getExpiresAtNanos(creationTimeNanos, currentTimeNanos, TimeUnit.MILLISECONDS.toNanos(in.readUnsignedVInt()));
-            Verb verb = Verb.fromId(in.readUnsignedVInt32());
-            int flags = in.readUnsignedVInt32();
-            Map<ParamType, Object> params = deserializeParams(in, version);
-            return new Header(id, verb, peer, creationTimeNanos, expiresAtNanos, flags, params);
-        }
-
-        private void skipHeaderPost40(DataInputPlus in) throws IOException
-        {
-            skipUnsignedVInt(in); // id
-            in.skipBytesFully(4); // createdAt
-            skipUnsignedVInt(in); // expiresIn
-            skipUnsignedVInt(in); // verb
-            skipUnsignedVInt(in); // flags
-            skipParamsPost40(in); // params
-        }
-
-        private int serializedHeaderSizePost40(Header header, int version)
-        {
-            long size = 0;
-            size += sizeofUnsignedVInt(header.id);
-            size += CREATION_TIME_SIZE;
-            size += sizeofUnsignedVInt(NANOSECONDS.toMillis(header.expiresAtNanos - header.createdAtNanos));
-            size += sizeofUnsignedVInt(header.verb.id);
-            size += sizeofUnsignedVInt(header.flags);
-            size += serializedParamsSize(header.params, version);
-            return Ints.checkedCast(size);
-        }
-
-        private Header extractHeaderPost40(ByteBuffer buf, InetAddressAndPort from, long currentTimeNanos, int version) throws IOException
         {
             MonotonicClockTranslation timeSnapshot = approxTime.translate();
 
@@ -842,39 +791,61 @@ public class Message<T>
             return new Header(id, verb, from, createdAtNanos, expiresAtNanos, flags, params);
         }
 
-        private <T> void serializePost40(Message<T> message, DataOutputPlus out, int version) throws IOException
+        private static long getExpiresAtNanos(long createdAtNanos, long currentTimeNanos, long expirationPeriodNanos)
         {
-            serializeHeaderPost40(message.header, out, version);
-            out.writeUnsignedVInt32(message.payloadSize(version));
-            message.verb().serializer().serialize(message.payload, out, version);
+            if (!DatabaseDescriptor.hasCrossNodeTimeout() || createdAtNanos > currentTimeNanos)
+                createdAtNanos = currentTimeNanos;
+            return createdAtNanos + expirationPeriodNanos;
         }
 
-        private <T> Message<T> deserializePost40(DataInputPlus in, InetAddressAndPort peer, int version) throws IOException
+        private void serializeHeaderImpl(Header header, DataOutputPlus out, int version) throws IOException
         {
-            Header header = deserializeHeaderPost40(in, peer, version);
-            skipUnsignedVInt(in); // payload size, not needed by payload deserializer
-            T payload = (T) header.verb.serializer().deserialize(in, version);
-            return new Message<>(header, payload);
+            out.writeUnsignedVInt(header.id);
+            // int cast cuts off the high-order half of the timestamp, which we can assume remains
+            // the same between now and when the recipient reconstructs it.
+            out.writeInt((int) approxTime.translate().toMillisSinceEpoch(header.createdAtNanos));
+            out.writeUnsignedVInt(NANOSECONDS.toMillis(header.expiresAtNanos - header.createdAtNanos));
+            out.writeUnsignedVInt32(header.verb.id);
+            out.writeUnsignedVInt32(header.flags);
+            serializeParams(header.params, out, version);
         }
 
-        private <T> Message<T> deserializePost40(DataInputPlus in, Header header, int version) throws IOException
+        private Header deserializeHeaderImpl(DataInputPlus in, InetAddressAndPort peer, int version) throws IOException
         {
-            skipHeaderPost40(in);
-            skipUnsignedVInt(in); // payload size, not needed by payload deserializer
-            T payload = (T) header.verb.serializer().deserialize(in, version);
-            return new Message<>(header, payload);
+            long id = in.readUnsignedVInt();
+            long currentTimeNanos = approxTime.now();
+            MonotonicClockTranslation timeSnapshot = approxTime.translate();
+            long creationTimeNanos = calculateCreationTimeNanos(in.readInt(), timeSnapshot, currentTimeNanos);
+            long expiresAtNanos = getExpiresAtNanos(creationTimeNanos, currentTimeNanos, TimeUnit.MILLISECONDS.toNanos(in.readUnsignedVInt()));
+            Verb verb = Verb.fromId(in.readUnsignedVInt32());
+            int flags = in.readUnsignedVInt32();
+            Map<ParamType, Object> params = deserializeParams(in, version);
+            return new Header(id, verb, peer, creationTimeNanos, expiresAtNanos, flags, params);
         }
 
-        private <T> int serializedSizePost40(Message<T> message, int version)
+        private void skipHeaderImpl(DataInputPlus in) throws IOException
+        {
+            skipUnsignedVInt(in); // id
+            in.skipBytesFully(4); // createdAt
+            skipUnsignedVInt(in); // expiresIn
+            skipUnsignedVInt(in); // verb
+            skipUnsignedVInt(in); // flags
+            skipParamsImpl(in); // params
+        }
+
+        private int serializedHeaderImpl(Header header, int version)
         {
             long size = 0;
-            size += serializedHeaderSizePost40(message.header, version);
-            int payloadSize = message.payloadSize(version);
-            size += sizeofUnsignedVInt(payloadSize) + payloadSize;
+            size += sizeofUnsignedVInt(header.id);
+            size += CREATION_TIME_SIZE;
+            size += sizeofUnsignedVInt(NANOSECONDS.toMillis(header.expiresAtNanos - header.createdAtNanos));
+            size += sizeofUnsignedVInt(header.verb.id);
+            size += sizeofUnsignedVInt(header.flags);
+            size += serializedParamsSize(header.params, version);
             return Ints.checkedCast(size);
         }
 
-        private int inferMessageSizePost40(ByteBuffer buf, int readerIndex, int readerLimit)
+        private int inferMessageSizeImpl(ByteBuffer buf, int readerIndex, int readerLimit)
         {
             int index = readerIndex;
 
@@ -902,7 +873,7 @@ public class Message<T>
                 return -1;
             index += flagsSize;
 
-            int paramsSize = extractParamsSizePost40(buf, index, readerLimit);
+            int paramsSize = extractParamsSizeImpl(buf, index, readerLimit);
             if (paramsSize < 0)
                 return -1;
             index += paramsSize;
@@ -1033,7 +1004,7 @@ public class Message<T>
             }
         }
 
-        private void skipParamsPost40(DataInputPlus in) throws IOException
+        private void skipParamsImpl(DataInputPlus in) throws IOException
         {
             int count = in.readUnsignedVInt32();
 
@@ -1063,7 +1034,7 @@ public class Message<T>
             return size;
         }
 
-        private int extractParamsSizePost40(ByteBuffer buf, int readerIndex, int readerLimit)
+        private int extractParamsSizeImpl(ByteBuffer buf, int readerIndex, int readerLimit)
         {
             int index = readerIndex;
 
