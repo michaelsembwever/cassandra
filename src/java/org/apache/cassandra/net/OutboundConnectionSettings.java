@@ -33,7 +33,6 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.config.DatabaseDescriptor.getEndpointSnitch;
-import static org.apache.cassandra.net.MessagingService.VERSION_40;
 import static org.apache.cassandra.net.MessagingService.instance;
 import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
 

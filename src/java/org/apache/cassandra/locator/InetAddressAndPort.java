@@ -509,12 +509,5 @@ public final class InetAddressAndPort extends InetSocketAddress implements Compa
             }
         }
 
-        public InetAddressAndPort pre40DeserializeWithLength(DataInputPlus in, int version, int length) throws IOException
-        {
-            assert length == 4 || length == 16 : "unexpected length " + length;
-            byte[] from = new byte[length];
-            in.readFully(from, 0, length);
-            return InetAddressAndPort.getByAddress(from);
-        }
     }
 }

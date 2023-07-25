@@ -52,13 +52,9 @@ import org.apache.cassandra.utils.Throwables;
 
 import static org.junit.Assert.assertEquals;
 
-@RunWith(Parameterized.class)
 public class ColumnFilterTest
 {
     private static final ColumnFilter.Serializer serializer = new ColumnFilter.Serializer();
-
-    @Parameterized.Parameter
-    public String clusterMinVersion;
 
     private final TableMetadata metadata = TableMetadata.builder("ks", "table")
                                                         .partitioner(Murmur3Partitioner.instance)
@@ -82,13 +78,6 @@ public class ColumnFilterTest
     private final CellPath path3 = CellPath.create(ByteBufferUtil.bytes(3));
     private final CellPath path4 = CellPath.create(ByteBufferUtil.bytes(4));
 
-
-    @Parameterized.Parameters(name = "{index}: clusterMinVersion={0}")
-    public static Collection<Object[]> data()
-    {
-        return (Collection) Arrays.asList(new Object[]{ "4.0" });
-    }
-
     @BeforeClass
     public static void beforeClass()
     {
@@ -104,7 +93,7 @@ public class ColumnFilterTest
     @Before
     public void before()
     {
-        Util.setUpgradeFromVersion(clusterMinVersion);
+        Util.setUpgradeFromVersion("4.0");
     }
 
     // Select all
@@ -341,7 +330,7 @@ public class ColumnFilterTest
         Consumer<ColumnFilter> check = filter -> {
             testRoundTrips(filter);
             assertFetchedQueried(true, true, filter, v1);
-            if (returnStaticContentOnPartitionWithNoRows && "4.0".equals(clusterMinVersion))
+            if (returnStaticContentOnPartitionWithNoRows)
             {
                 assertEquals("*/[v1]", filter.toString());
                 assertEquals("v1", filter.toCQLString());
@@ -381,7 +370,7 @@ public class ColumnFilterTest
         Consumer<ColumnFilter> check = filter -> {
             testRoundTrips(filter);
             assertFetchedQueried(true, true, filter, s1);
-            if (returnStaticContentOnPartitionWithNoRows && "4.0".equals(clusterMinVersion))
+            if (returnStaticContentOnPartitionWithNoRows)
             {
                 assertEquals("*/[s1]", filter.toString());
                 assertEquals("s1", filter.toCQLString());
@@ -423,7 +412,7 @@ public class ColumnFilterTest
                                           .build();
         testRoundTrips(filter);
         assertFetchedQueried(true, true, filter, v2);
-        if (returnStaticContentOnPartitionWithNoRows && "4.0".equals(clusterMinVersion))
+        if (returnStaticContentOnPartitionWithNoRows)
         {
             assertEquals("*/[v2[1]]", filter.toString());
             assertEquals("v2[1]", filter.toCQLString());
@@ -463,7 +452,7 @@ public class ColumnFilterTest
                                           .build();
         testRoundTrips(filter);
         assertFetchedQueried(true, true, filter, s2);
-        if (returnStaticContentOnPartitionWithNoRows && "4.0".equals(clusterMinVersion))
+        if (returnStaticContentOnPartitionWithNoRows)
         {
             assertEquals("*/[s2[1]]", filter.toString());
             assertEquals("s2[1]", filter.toCQLString());
