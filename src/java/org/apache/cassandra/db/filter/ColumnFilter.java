@@ -26,9 +26,6 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.SortedSetMultimap;
 import com.google.common.collect.TreeMultimap;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.CellPath;
@@ -67,7 +64,6 @@ import org.apache.cassandra.schema.TableMetadata;
  */
 public abstract class ColumnFilter
 {
-    private final static Logger logger = LoggerFactory.getLogger(ColumnFilter.class);
 
     public static final ColumnFilter NONE = selection(RegularAndStaticColumns.NONE);
 
@@ -85,10 +81,6 @@ public abstract class ColumnFilter
          * For queries that have no restrictions on the clustering or regular columns, C* will return some data for
          * the partition even if it does not contains any row as long as one of the static columns contains data.
          * To be able to ensure those queries all columns need to be fetched.</p>
-         *
-         * <p>This strategy is also used, instead of the ALL_REGULARS_AND_QUERIED_STATICS_COLUMNS one, in mixed version clusters
-         * where some nodes have a version lower than 4.0. To ensure backward compatibility with those version that interpret the
-         * _fetchAll_ serialization flag as a true fetch all request.</p>
          */
         ALL_COLUMNS
         {

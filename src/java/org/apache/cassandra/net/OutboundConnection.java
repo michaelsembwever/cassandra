@@ -1215,9 +1215,6 @@ public class OutboundConnection
                 if (messagingVersion > settings.acceptVersions.max)
                     messagingVersion = settings.acceptVersions.max;
 
-                // ensure we connect to the correct SSL port
-                settings = settings.withLegacyPortIfNecessary(messagingVersion);
-
                 // In mixed mode operation, some nodes might be configured to use SSL for internode connections and
                 // others might be configured to not use SSL. When a node is configured in optional SSL mode, It should
                 // be able to handle SSL and Non-SSL internode connections. We take care of this when accepting NON-SSL
