@@ -73,15 +73,15 @@ public class HandshakeTest
         factory.shutdownNow();
     }
 
-    private Result handshake(int req, int outMin, int outMax) throws ExecutionException, InterruptedException
+    private Result handshake(int outMin, int outMax) throws ExecutionException, InterruptedException
     {
-        return handshake(req, new AcceptVersions(outMin, outMax), null);
+        return handshake(new AcceptVersions(outMin, outMax), null);
     }
-    private Result handshake(int req, int outMin, int outMax, int inMin, int inMax) throws ExecutionException, InterruptedException
+    private Result handshake(int outMin, int outMax, int inMin, int inMax) throws ExecutionException, InterruptedException
     {
-        return handshake(req, new AcceptVersions(outMin, outMax), new AcceptVersions(inMin, inMax));
+        return handshake(new AcceptVersions(outMin, outMax), new AcceptVersions(inMin, inMax));
     }
-    private Result handshake(int req, AcceptVersions acceptOutbound, AcceptVersions acceptInbound) throws ExecutionException, InterruptedException
+    private Result handshake(AcceptVersions acceptOutbound, AcceptVersions acceptInbound) throws ExecutionException, InterruptedException
     {
         InboundSockets inbound = new InboundSockets(new InboundConnectionSettings().withAcceptMessaging(acceptInbound));
         try
@@ -96,7 +96,7 @@ public class HandshakeTest
                               new OutboundConnectionSettings(endpoint)
                                                     .withAcceptVersions(acceptOutbound)
                                                     .withDefaults(ConnectionCategory.MESSAGING),
-                              req, AsyncPromise.withExecutor(eventLoop));
+                              AsyncPromise.withExecutor(eventLoop));
             return future.get();
         }
         finally
@@ -109,7 +109,7 @@ public class HandshakeTest
     @Test
     public void testBothCurrentVersion() throws InterruptedException, ExecutionException
     {
-        Result result = handshake(current_version, minimum_version, current_version);
+        Result result = handshake(minimum_version, current_version);
         Assert.assertEquals(Result.Outcome.SUCCESS, result.outcome);
         result.success().channel.close();
     }
@@ -117,7 +117,7 @@ public class HandshakeTest
     @Test
     public void testSendCompatibleOldVersion() throws InterruptedException, ExecutionException
     {
-        Result result = handshake(current_version, current_version, current_version + 1, current_version +1, current_version + 2);
+        Result result = handshake(current_version, current_version + 1, current_version +1, current_version + 2);
         Assert.assertEquals(Result.Outcome.SUCCESS, result.outcome);
         Assert.assertEquals(current_version + 1, result.success().messagingVersion);
         result.success().channel.close();
@@ -126,7 +126,7 @@ public class HandshakeTest
     @Test
     public void testSendCompatibleFutureVersion() throws InterruptedException, ExecutionException
     {
-        Result result = handshake(current_version + 1, current_version - 1, current_version + 1);
+        Result result = handshake(MessagingService.minimum_version, current_version + 1);
         Assert.assertEquals(Result.Outcome.SUCCESS, result.outcome);
         Assert.assertEquals(current_version, result.success().messagingVersion);
         result.success().channel.close();
@@ -135,7 +135,7 @@ public class HandshakeTest
     @Test
     public void testSendIncompatibleFutureVersion() throws InterruptedException, ExecutionException
     {
-        Result result = handshake(current_version + 1, current_version + 1, current_version + 1);
+        Result result = handshake(current_version + 1, current_version + 1);
         Assert.assertEquals(Result.Outcome.INCOMPATIBLE, result.outcome);
         Assert.assertEquals(current_version, result.incompatible().closestSupportedVersion);
         Assert.assertEquals(current_version, result.incompatible().maxMessagingVersion);
@@ -144,7 +144,7 @@ public class HandshakeTest
     @Test
     public void testSendIncompatibleOldVersion() throws InterruptedException, ExecutionException
     {
-        Result result = handshake(current_version + 1, current_version + 1, current_version + 1, current_version + 2, current_version + 3);
+        Result result = handshake(current_version + 1, current_version + 1, current_version + 2, current_version + 3);
         Assert.assertEquals(Result.Outcome.INCOMPATIBLE, result.outcome);
         Assert.assertEquals(current_version + 2, result.incompatible().closestSupportedVersion);
         Assert.assertEquals(current_version + 3, result.incompatible().maxMessagingVersion);
@@ -154,50 +154,28 @@ public class HandshakeTest
     public void testSendAllSupported() throws InterruptedException, ExecutionException
     {
         List<MessagingService.Version> supportedVersions = MessagingService.Version.supportedVersions();
-        for (MessagingService.Version req : supportedVersions)
-            for (MessagingService.Version outMin : supportedVersions)
-                for (MessagingService.Version outMax : supportedVersions)
-                    if (outMin.value <= outMax.value)
-                        for (MessagingService.Version inMin : supportedVersions)
-                            for (MessagingService.Version inMax : supportedVersions)
-                                if (inMin.value <= inMax.value)
+        for (MessagingService.Version outMin : supportedVersions)
+            for (MessagingService.Version outMax : supportedVersions)
+                if (outMin.value <= outMax.value)
+                    for (MessagingService.Version inMin : supportedVersions)
+                        for (MessagingService.Version inMax : supportedVersions)
+                            if (inMin.value <= inMax.value)
+                            {
+                                Result result = handshake(outMin.value, outMax.value, inMin.value, inMax.value);
+                                // expect success if out and in have a version in common
+                                boolean expectSuccess = outMin.value <= inMax.value && inMin.value <= outMax.value;
+
+                                Assert.assertEquals(String.format("wrong result outcome for outMin %s outMax %s inMin %s inMax %s", outMin.value, outMax.value, inMin.value, inMax.value),
+                                                expectSuccess ? Result.Outcome.SUCCESS : Result.Outcome.INCOMPATIBLE, result.outcome);
+
+                                if (expectSuccess)
                                 {
-                                    Result result = handshake(req.value, outMin.value, outMax.value, inMin.value, inMax.value);
-                                    // expect success if out and in have a version in common
-                                    boolean expectSuccess = outMin.value <= inMax.value && inMin.value <= outMax.value;
-
-                                    Assert.assertEquals(String.format("wrong result outcome for req %s outMin %s outMax %s inMin %s inMax %s", req.value, outMin.value, outMax.value, inMin.value, inMax.value),
-                                                    expectSuccess ? Result.Outcome.SUCCESS : Result.Outcome.INCOMPATIBLE, result.outcome);
-
-                                    if (expectSuccess)
-                                    {
-                                        Assert.assertEquals(String.format("wrong agreed messagingVersion for req %s outMin %s outMax %s inMin %s inMax %s", req.value, outMin.value, outMax.value, inMin.value, inMax.value),
-                                                        Math.min(outMax.value, inMax.value), result.success().messagingVersion);
-                                        result.success().channel.close();
-                                    }
+                                    Assert.assertEquals(String.format("wrong agreed messagingVersion for outMin %s outMax %s inMin %s inMax %s", outMin.value, outMax.value, inMin.value, inMax.value),
+                                                    Math.min(outMax.value, inMax.value), result.success().messagingVersion);
+                                    result.success().channel.close();
                                 }
+                            }
         }
-
-    @Test
-    public void testSendCompatibleOldVersion40() throws InterruptedException, ExecutionException
-    {
-        Assertions.assertThatThrownBy(() -> Objects.toString(handshake(VERSION_30, VERSION_30, VERSION_30, VERSION_30, current_version)))
-                  .hasRootCauseInstanceOf(ClosedChannelException.class);
-    }
-
-    @Test
-    public void testSendIncompatibleOldVersion40() throws InterruptedException
-    {
-        Assertions.assertThatThrownBy(() -> Objects.toString(handshake(VERSION_30, VERSION_30, VERSION_30, current_version, current_version)))
-                  .hasRootCauseInstanceOf(ClosedChannelException.class);
-    }
-
-    @Test // fairly contrived case, but since we introduced logic for testing we need to be careful it doesn't make us worse
-    public void testSendToFuturePost40BelievedToBePre40() throws InterruptedException, ExecutionException
-    {
-        Assertions.assertThatThrownBy(() -> Objects.toString(handshake(VERSION_30, VERSION_30, current_version, VERSION_30, current_version + 1)))
-                  .hasRootCauseInstanceOf(ClosedChannelException.class);
-    }
 
     @Test
     public void testOutboundConnectionfFallbackDuringUpgrades() throws ClosedChannelException, InterruptedException

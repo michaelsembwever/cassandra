@@ -129,6 +129,7 @@ public class OutboundConnectionSettings
         Preconditions.checkArgument(applicationSendQueueCapacityInBytes == null || applicationSendQueueCapacityInBytes >= 1 << 10, "illegal application send queue capacity: " + applicationSendQueueCapacityInBytes);
         Preconditions.checkArgument(tcpUserTimeoutInMS == null || tcpUserTimeoutInMS >= 0, "tcp user timeout must be non negative: " + tcpUserTimeoutInMS);
         Preconditions.checkArgument(tcpConnectTimeoutInMS == null || tcpConnectTimeoutInMS > 0, "tcp connect timeout must be positive: " + tcpConnectTimeoutInMS);
+        Preconditions.checkArgument(acceptVersions == null || acceptVersions.min >= MessagingService.minimum_version, "acceptVersions.min must be minimum_version or higher: " + (acceptVersions == null ? null : acceptVersions.min));
 
         this.authenticator = authenticator;
         this.to = to;

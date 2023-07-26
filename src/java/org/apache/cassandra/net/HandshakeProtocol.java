@@ -22,8 +22,6 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Objects;
 
-import com.google.common.annotations.VisibleForTesting;
-
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -50,8 +48,7 @@ import static org.apache.cassandra.net.OutboundConnectionSettings.*;
  * it will simply disconnect and reconnect with a more appropriate version. But if the version is acceptable, the connection
  * initiator sends the third message of the protocol, after which it considers the connection ready.
  */
-@VisibleForTesting
-public class HandshakeProtocol
+class HandshakeProtocol
 {
     static final long TIMEOUT_MILLIS = 3 * DatabaseDescriptor.getRpcTimeout(MILLISECONDS);
 
@@ -92,8 +89,6 @@ public class HandshakeProtocol
         private static final int MIN_LENGTH = 8;
         private static final int MAX_LENGTH = 12 + InetAddressAndPort.Serializer.MAXIMUM_SIZE;
 
-        @Deprecated // this is ignored by post40 nodes, i.e. if maxMessagingVersion is set
-        final int requestMessagingVersion;
         // the messagingVersion bounds the sender will accept to initiate a connection;
         // if the remote peer supports any, the newest supported version will be selected; otherwise the nearest supported version
         final AcceptVersions acceptVersions;
@@ -101,17 +96,15 @@ public class HandshakeProtocol
         final Framing framing;
         final InetAddressAndPort from;
 
-        Initiate(int requestMessagingVersion, AcceptVersions acceptVersions, ConnectionType type, Framing framing, InetAddressAndPort from)
+        Initiate(AcceptVersions acceptVersions, ConnectionType type, Framing framing, InetAddressAndPort from)
         {
-            this.requestMessagingVersion = requestMessagingVersion;
             this.acceptVersions = acceptVersions;
             this.type = type;
             this.framing = framing;
             this.from = from;
         }
 
-        @VisibleForTesting
-        int encodeFlags()
+        private int encodeFlags()
         {
             int flags = 0;
             if (type.isMessaging())
@@ -121,11 +114,7 @@ public class HandshakeProtocol
 
             // framing id is split over 2nd and 4th bits, for backwards compatibility
             flags |= ((framing.id & 1) << 2) | ((framing.id & 2) << 3);
-            flags |= (requestMessagingVersion << 8);
-
-            if (requestMessagingVersion < VERSION_40 || acceptVersions.max < VERSION_40)
-                return flags; // for testing, permit serializing as though we are pre40
-
+            flags |= (acceptVersions.min << 8); // legacy (pre40)
             flags |= (acceptVersions.min << 16);
             flags |= (acceptVersions.max << 24);
             return flags;
@@ -138,12 +127,8 @@ public class HandshakeProtocol
             {
                 out.writeInt(Message.PROTOCOL_MAGIC);
                 out.writeInt(encodeFlags());
-
-                if (requestMessagingVersion >= VERSION_40 && acceptVersions.max >= VERSION_40)
-                {
-                    inetAddressAndPortSerializer.serialize(from, out, requestMessagingVersion);
-                    out.writeInt(computeCrc32(buffer, 0, buffer.position()));
-                }
+                inetAddressAndPortSerializer.serialize(from, out, acceptVersions.min);
+                out.writeInt(computeCrc32(buffer, 0, buffer.position()));
                 buffer.flip();
                 return GlobalBufferPoolAllocator.wrap(buffer);
             }
@@ -165,9 +150,17 @@ public class HandshakeProtocol
                 validateLegacyProtocolMagic(in.readInt());
                 int flags = in.readInt();
 
-                int requestedMessagingVersion = getBits(flags, 8, 8);
+                // legacy pre40 messagingVersion flag
+                if (getBits(flags, 8, 8) < VERSION_40)
+                    return null;
+
                 int minMessagingVersion = getBits(flags, 16, 8);
                 int maxMessagingVersion = getBits(flags, 24, 8);
+
+                // 5.0+ does not support pre40
+                if (maxMessagingVersion < MessagingService.VERSION_40)
+                    return null;
+
                 int framingBits = getBits(flags, 2, 1) | (getBits(flags, 4, 1) << 1);
                 Framing framing = Framing.forId(framingBits);
 
@@ -177,23 +170,15 @@ public class HandshakeProtocol
                                     ? ConnectionType.STREAMING
                                     : ConnectionType.fromId(getBits(flags, 0, 2));
 
-                InetAddressAndPort from = null;
+                InetAddressAndPort from = inetAddressAndPortSerializer.deserialize(in, minMessagingVersion);
 
-                if (requestedMessagingVersion >= VERSION_40 && maxMessagingVersion >= MessagingService.VERSION_40)
-                {
-                    from = inetAddressAndPortSerializer.deserialize(in, requestedMessagingVersion);
-
-                    int computed = computeCrc32(nio, start, nio.position());
-                    int read = in.readInt();
-                    if (read != computed)
-                        throw new InvalidCrc(read, computed);
-                }
+                int computed = computeCrc32(nio, start, nio.position());
+                int read = in.readInt();
+                if (read != computed)
+                    throw new InvalidCrc(read, computed);
 
                 buf.skipBytes(nio.position() - start);
-                return new Initiate(requestedMessagingVersion,
-                                    minMessagingVersion == 0 && maxMessagingVersion == 0
-                                        ? null : new AcceptVersions(minMessagingVersion, maxMessagingVersion),
-                                    type, framing, from);
+                return new Initiate(new AcceptVersions(minMessagingVersion, maxMessagingVersion), type, framing, from);
 
             }
             catch (EOFException e)
@@ -202,7 +187,6 @@ public class HandshakeProtocol
             }
         }
 
-        @VisibleForTesting
         @Override
         public boolean equals(Object other)
         {
@@ -212,17 +196,15 @@ public class HandshakeProtocol
             Initiate that = (Initiate)other;
             return    this.type == that.type
                    && this.framing == that.framing
-                   && this.requestMessagingVersion == that.requestMessagingVersion
                    && Objects.equals(this.acceptVersions, that.acceptVersions);
         }
 
         @Override
         public String toString()
         {
-            return String.format("Initiate(request: %d, min: %d, max: %d, type: %s, framing: %b, from: %s)",
-                                 requestMessagingVersion,
-                                 acceptVersions == null ? requestMessagingVersion : acceptVersions.min,
-                                 acceptVersions == null ? requestMessagingVersion : acceptVersions.max,
+            return String.format("Initiate(min: %d, max: %d, type: %s, framing: %b, from: %s)",
+                                 acceptVersions.min,
+                                 acceptVersions.max,
                                  type, framing, from);
         }
     }
@@ -236,9 +218,8 @@ public class HandshakeProtocol
      *   1) the messaging version of the peer sending this message
      *   2) the negotiated messaging version if one could be accepted by both peers,
      *      or if not the closest version that this peer could support to the ones requested
-     *   3) a CRC protectingn the integrity of the message
+     *   3) a CRC protecting the integrity of the message
      *
-     * Note that the pre40 equivalent of this message contains ONLY the messaging version of the peer.
      */
     static class Accept
     {
@@ -264,7 +245,7 @@ public class HandshakeProtocol
             return buffer;
         }
 
-        static Accept maybeDecode(ByteBuf in, int handshakeMessagingVersion) throws InvalidCrc
+        static Accept maybeDecode(ByteBuf in) throws InvalidCrc
         {
             int readerIndex = in.readerIndex();
             if (in.readableBytes() < 4)
@@ -272,9 +253,9 @@ public class HandshakeProtocol
             int maxMessagingVersion = in.readInt();
             int useMessagingVersion = 0;
 
-            // if the other node is pre-4.0, it will respond only with its maxMessagingVersion
-            if (maxMessagingVersion < VERSION_40 || handshakeMessagingVersion < VERSION_40)
-                return new Accept(useMessagingVersion, maxMessagingVersion);
+            // pre-4.0 not supported, close the connection
+            if (maxMessagingVersion < VERSION_40)
+                return null;
 
             if (in.readableBytes() < 8)
             {
@@ -292,7 +273,6 @@ public class HandshakeProtocol
             return new Accept(useMessagingVersion, maxMessagingVersion);
         }
 
-        @VisibleForTesting
         @Override
         public boolean equals(Object other)
         {

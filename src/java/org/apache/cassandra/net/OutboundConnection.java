@@ -1228,7 +1228,7 @@ public class OutboundConnection
                 {
                     logger.info("ConnectionId {} is falling back to {} reconnect strategy for retry", id(), fallBackSslFallbackConnectionTypes[index]);
                 }
-                initiateMessaging(eventLoop, type, fallBackSslFallbackConnectionTypes[index], settings, messagingVersion, result)
+                initiateMessaging(eventLoop, type, fallBackSslFallbackConnectionTypes[index], settings, result)
                 .addListener(future -> {
                     if (future.isCancelled())
                         return;
