@@ -20,15 +20,12 @@ package org.apache.cassandra.db.filter;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.function.Consumer;
 
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
 
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;

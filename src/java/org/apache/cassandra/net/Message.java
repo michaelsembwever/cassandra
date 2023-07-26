@@ -981,9 +981,6 @@ public class Message<T>
             return params;
         }
 
-        /*
-         * Extract post-4.0 params map from a ByteBuffer without modifying it.
-         */
         private Map<ParamType, Object> extractParams(ByteBuffer buf, int readerIndex, int version) throws IOException
         {
             long count = getUnsignedVInt(buf, readerIndex);

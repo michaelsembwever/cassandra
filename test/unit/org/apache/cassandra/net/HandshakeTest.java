@@ -22,7 +22,6 @@ import java.nio.channels.ClosedChannelException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -39,7 +38,6 @@ import org.apache.cassandra.net.OutboundConnectionInitiator.Result.MessagingSucc
 import org.apache.cassandra.security.DefaultSslContextFactory;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 
-import org.assertj.core.api.Assertions;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -47,7 +45,6 @@ import org.junit.Test;
 import io.netty.channel.EventLoop;
 import io.netty.util.concurrent.Future;
 
-import static org.apache.cassandra.net.MessagingService.VERSION_30;
 import static org.apache.cassandra.net.MessagingService.current_version;
 import static org.apache.cassandra.net.MessagingService.minimum_version;
 import static org.apache.cassandra.net.ConnectionType.SMALL_MESSAGES;
