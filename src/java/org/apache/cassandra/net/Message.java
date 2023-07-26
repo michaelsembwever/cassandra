@@ -52,7 +52,6 @@ import static org.apache.cassandra.db.TypeSizes.sizeof;
 import static org.apache.cassandra.db.TypeSizes.sizeofUnsignedVInt;
 import static org.apache.cassandra.net.MessagingService.VERSION_40;
 import static org.apache.cassandra.net.MessagingService.VERSION_50;
-import static org.apache.cassandra.net.MessagingService.instance;
 import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
 import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
 import static org.apache.cassandra.utils.vint.VIntCoding.*;
@@ -1067,16 +1066,7 @@ public class Message<T>
 
     private IVersionedAsymmetricSerializer<T, ?> getPayloadSerializer()
     {
-        return getPayloadSerializer(verb(), id(), from());
-    }
-
-    // Verb#serializer() is null for legacy response messages. Once all Verbs with null handlers
-    // are removed in a future major, this method can be replaced with a call to verb.serializer.
-    private static <In,Out> IVersionedAsymmetricSerializer<In, Out> getPayloadSerializer(Verb verb, long id, InetAddressAndPort from)
-    {
-        return null != verb.serializer()
-             ? verb.serializer()
-             : instance().callbacks.responseSerializer(id, from);
+        return verb().serializer();
     }
 
     private int serializedSize40;
