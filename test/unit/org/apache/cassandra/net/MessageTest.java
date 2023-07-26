@@ -118,11 +118,11 @@ public class MessageTest
 
             // should return -1 - fail to infer size - for all lengths of buffer until payload length can be read
             for (int limit = 0; limit < serializedSize - payloadSize; limit++)
-                assertEquals(-1, serializer.inferMessageSize(buffer, 0, limit, version));
+                assertEquals(-1, serializer.inferMessageSize(buffer, 0, limit));
 
             // once payload size can be read, should correctly infer message size
             for (int limit = serializedSize - payloadSize; limit < serializedSize; limit++)
-                assertEquals(serializedSize, serializer.inferMessageSize(buffer, 0, limit, version));
+                assertEquals(serializedSize, serializer.inferMessageSize(buffer, 0, limit));
         }
     }
 

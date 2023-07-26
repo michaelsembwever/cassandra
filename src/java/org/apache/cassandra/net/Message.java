@@ -745,9 +745,46 @@ public class Message<T>
         /**
          * Size of the next message in the stream. Returns -1 if there aren't sufficient bytes read yet to determine size.
          */
-        int inferMessageSize(ByteBuffer buf, int index, int limit, int version) throws InvalidLegacyProtocolMagic
-        {
-            int size = inferMessageSize(buf, index, limit);
+        int inferMessageSize(ByteBuffer buf, int readerIndex, int readerLimit)
+        {            
+            int index = readerIndex;
+
+            int idSize = computeUnsignedVIntSize(buf, index, readerLimit);
+            if (idSize < 0)
+                return -1; // not enough bytes to read id
+            index += idSize;
+
+            index += CREATION_TIME_SIZE;
+            if (index > readerLimit)
+                return -1;
+
+            int expirationSize = computeUnsignedVIntSize(buf, index, readerLimit);
+            if (expirationSize < 0)
+                return -1;
+            index += expirationSize;
+
+            int verbIdSize = computeUnsignedVIntSize(buf, index, readerLimit);
+            if (verbIdSize < 0)
+                return -1;
+            index += verbIdSize;
+
+            int flagsSize = computeUnsignedVIntSize(buf, index, readerLimit);
+            if (flagsSize < 0)
+                return -1;
+            index += flagsSize;
+
+            int paramsSize = extractParamsSize(buf, index, readerLimit);
+            if (paramsSize < 0)
+                return -1;
+            index += paramsSize;
+
+            long payloadSize = getUnsignedVInt(buf, index, readerLimit);
+            if (payloadSize < 0)
+                return -1;
+            index += computeUnsignedVIntSize(payloadSize) + payloadSize;
+
+            int size = index - readerIndex;
+            
             if (size > DatabaseDescriptor.getInternodeMaxMessageSizeInBytes())
                 throw new OversizedMessageException(size);
             return size;
@@ -842,47 +879,6 @@ public class Message<T>
             size += sizeofUnsignedVInt(header.flags);
             size += serializedParamsSize(header.params, version);
             return Ints.checkedCast(size);
-        }
-
-        private int inferMessageSize(ByteBuffer buf, int readerIndex, int readerLimit)
-        {
-            int index = readerIndex;
-
-            int idSize = computeUnsignedVIntSize(buf, index, readerLimit);
-            if (idSize < 0)
-                return -1; // not enough bytes to read id
-            index += idSize;
-
-            index += CREATION_TIME_SIZE;
-            if (index > readerLimit)
-                return -1;
-
-            int expirationSize = computeUnsignedVIntSize(buf, index, readerLimit);
-            if (expirationSize < 0)
-                return -1;
-            index += expirationSize;
-
-            int verbIdSize = computeUnsignedVIntSize(buf, index, readerLimit);
-            if (verbIdSize < 0)
-                return -1;
-            index += verbIdSize;
-
-            int flagsSize = computeUnsignedVIntSize(buf, index, readerLimit);
-            if (flagsSize < 0)
-                return -1;
-            index += flagsSize;
-
-            int paramsSize = extractParamsSize(buf, index, readerLimit);
-            if (paramsSize < 0)
-                return -1;
-            index += paramsSize;
-
-            long payloadSize = getUnsignedVInt(buf, index, readerLimit);
-            if (payloadSize < 0)
-                return -1;
-            index += computeUnsignedVIntSize(payloadSize) + payloadSize;
-
-            return index - readerIndex;
         }
 
         /*
