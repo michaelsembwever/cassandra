@@ -41,12 +41,6 @@ public class ForwardingInfoTest
         testVersion(MessagingService.current_version);
     }
 
-    @Test
-    public void test30() throws Exception
-    {
-        testVersion(MessagingService.VERSION_30);
-    }
-
     private void testVersion(int version) throws Exception
     {
         InetAddressAndPort.initializeDefaultPort(65532);
