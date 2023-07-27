@@ -162,7 +162,7 @@ abstract class MessageGenerator
         out.writeUnsignedVInt32(payload.length);
     }
 
-    static long serializedSize(byte[] payload, int messagingVersion)
+    static long serializedSize(byte[] payload)
     {
         return payload.length + VIntCoding.computeUnsignedVIntSize(payload.length);
     }

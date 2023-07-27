@@ -163,7 +163,8 @@ public class ReadResponseTest
 
     private void verifySerDe(ReadResponse response) {
         // check that roundtripping through ReadResponse.serializer behaves as expected
-        roundTripSerialization(response, MessagingService.current_version);
+        for (MessagingService.Version version : MessagingService.Version.supportedVersions())
+            roundTripSerialization(response, version.value);
 
     }
 

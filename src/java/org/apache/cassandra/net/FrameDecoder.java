@@ -272,10 +272,6 @@ public abstract class FrameDecoder extends ChannelInboundHandlerAdapter
             allocator.putUnusedPortion(buf);
             channelRead(ShareableBytes.wrap(buf));
         }
-        else if (msg instanceof ShareableBytes) // legacy LZ4 decoder
-        {
-            channelRead((ShareableBytes) msg);
-        }
         else
         {
             throw new IllegalArgumentException();
