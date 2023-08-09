@@ -1,4 +1,5 @@
 5.0-beta1
+ * Limit cassandra startup to supported JDKs, allow higher JDKs by setting CASSANDRA_JDK_UNSUPPORTED (CASSANDRA-18688)
  * Clone EndpointState before sending GossipShutdown message (CASSANDRA-19115)
  * SAI indexes are marked queryable during truncation (CASSANDRA-19032)
  * Enable Direct-IO feature for CommitLog files using Java native API's. (CASSANDRA-18464)
