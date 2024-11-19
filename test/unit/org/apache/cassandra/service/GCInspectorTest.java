@@ -17,8 +17,10 @@
  */
 package org.apache.cassandra.service;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -47,9 +49,18 @@ public class GCInspectorTest
     
     @Test
     public void ensureStaticFieldsHydrateFromConfig()
-    {    
-        assertEquals(DatabaseDescriptor.getGCLogThreshold(), gcInspector.getGcLogThresholdInMs());
-        assertEquals(DatabaseDescriptor.getGCWarnThreshold(), gcInspector.getGcWarnThresholdInMs());
+    {
+        if (CassandraRelevantProperties.JAVA_VERSION.getString().compareTo("21") > 0)
+        {
+            Assert.assertEquals(DatabaseDescriptor.getZGCLogThreshold(), gcInspector.getGcLogThresholdInMs());
+            Assert.assertEquals(DatabaseDescriptor.getZGCWarnThreshold(), gcInspector.getGcWarnThresholdInMs());
+        }
+        else
+        {
+            Assert.assertEquals(DatabaseDescriptor.getGCLogThreshold(), gcInspector.getGcLogThresholdInMs());
+            Assert.assertEquals(DatabaseDescriptor.getGCWarnThreshold(), gcInspector.getGcWarnThresholdInMs());
+        }
+
         assertEquals(DatabaseDescriptor.getGCConcurrentPhaseLogThreshold(), gcInspector.getGcConcurrentPhaseLogThresholdInMs());
         assertEquals(DatabaseDescriptor.getGCConcurrentPhaseWarnThreshold(), gcInspector.getGcConcurrentPhaseWarnThresholdInMs());
     }
@@ -79,6 +90,7 @@ public class GCInspectorTest
         assertEquals(gcInspector.getStatusThresholdInMs(), gcInspector.getGcLogThresholdInMs());
         assertEquals(0, DatabaseDescriptor.getGCWarnThreshold());
         assertEquals(200, DatabaseDescriptor.getGCLogThreshold());
+        assertEquals(20000, DatabaseDescriptor.getZGCLogThreshold());
 
         gcInspector.setGcConcurrentPhaseWarnThresholdInMs(0);
         assertEquals(0, DatabaseDescriptor.getGCConcurrentPhaseWarnThreshold());
@@ -88,7 +100,11 @@ public class GCInspectorTest
     @Test
     public void ensureLogLessThanWarn()
     {
-        assertEquals(200, gcInspector.getGcLogThresholdInMs());
+        if (CassandraRelevantProperties.JAVA_VERSION.getString().compareTo("21") > 0)
+            Assert.assertEquals(20000, gcInspector.getGcLogThresholdInMs());
+        else
+            Assert.assertEquals(200, gcInspector.getGcLogThresholdInMs());
+
         gcInspector.setGcWarnThresholdInMs(1000);
         assertEquals(1000, gcInspector.getGcWarnThresholdInMs());
 
@@ -120,6 +136,10 @@ public class GCInspectorTest
         assertEquals(1000, gcInspector.getGcConcurrentPhaseLogThresholdInMs());
         assertEquals(2000, DatabaseDescriptor.getGCConcurrentPhaseWarnThreshold());
         assertEquals(2000, gcInspector.getGcConcurrentPhaseWarnThresholdInMs());
+        Assert.assertEquals(5, DatabaseDescriptor.getGCPauseLogThreshold());
+        Assert.assertEquals(5, gcInspector.getGcPauseLogThresholdInMs());
+        Assert.assertEquals(10, DatabaseDescriptor.getGCPauseWarnThreshold());
+        Assert.assertEquals(10, gcInspector.getGcPauseWarnThresholdInMs());
     }
 
     @Test(expected=IllegalArgumentException.class)

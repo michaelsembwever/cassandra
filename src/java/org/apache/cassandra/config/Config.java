@@ -599,6 +599,13 @@ public class Config
     public volatile DurationSpec.IntMillisecondsBound gc_concurrent_phase_log_threshold = new DurationSpec.IntMillisecondsBound("1s");
     public volatile DurationSpec.IntMillisecondsBound gc_concurrent_phase_warn_threshold = new DurationSpec.IntMillisecondsBound("2s");
 
+    public volatile DurationSpec.IntMillisecondsBound gc_log_zgc_threshold = new DurationSpec.IntMillisecondsBound("20s");
+    public volatile DurationSpec.IntMillisecondsBound gc_warn_zgc_threshold = new DurationSpec.IntMillisecondsBound("30s");
+
+    // these are only used for ZGC now - for the "ZGC Minor/Major Pauses" events, which should be < 1ms in the normal case
+    public volatile DurationSpec.IntMillisecondsBound gc_pause_log_threshold = new DurationSpec.IntMillisecondsBound("2ms");
+    public volatile DurationSpec.IntMillisecondsBound gc_pause_warn_threshold = new DurationSpec.IntMillisecondsBound("10ms");
+
     // TTL for different types of trace events.
     @Replaces(oldName = "tracetype_query_ttl", converter = Converters.SECONDS_DURATION, deprecated=true)
     public DurationSpec.IntSecondsBound trace_type_query_ttl = new DurationSpec.IntSecondsBound("1d");

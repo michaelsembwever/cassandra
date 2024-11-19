@@ -4758,12 +4758,38 @@ public class DatabaseDescriptor
         conf.gc_log_threshold = new DurationSpec.IntMillisecondsBound(threshold);
     }
 
+    public static long getZGCLogThreshold()
+    {
+        return conf.gc_log_zgc_threshold.toMilliseconds();
+    }
+
+    public static void setZGCLogThreshold(long gcLogThreshold)
+    {
+        conf.gc_log_zgc_threshold = new DurationSpec.IntMillisecondsBound(gcLogThreshold);
+    }
+
+    public static long getGCPauseLogThreshold()
+    {
+        return conf.gc_pause_log_threshold.toMilliseconds();
+    }
+
+    public static void setGCPauseLogThreshold(long threshold)
+    {
+        conf.gc_pause_log_threshold = new DurationSpec.IntMillisecondsBound(threshold);
+    }
+
+    public static EncryptionContext getEncryptionContext()
+    {
+        return encryptionContext;
+
+    }
+
     public static long getGCWarnThreshold()
     {
         return conf.gc_warn_threshold.toMilliseconds();
     }
 
-    public static void setGCWarnThreshold(int threshold)
+    public static void setGCWarnThreshold(long threshold)
     {
         if (threshold < 0)
             throw new IllegalArgumentException("Threshold value for gc_warn_threshold must be greater than or equal to 0");
@@ -4774,6 +4800,26 @@ public class DatabaseDescriptor
                                                + gcLogThresholdInMs);
 
         conf.gc_warn_threshold = new DurationSpec.IntMillisecondsBound(threshold);
+    }
+
+    public static long getZGCWarnThreshold()
+    {
+        return conf.gc_warn_zgc_threshold.toMilliseconds();
+    }
+
+    public static void setZGCWarnThreshold(long threshold)
+    {
+        conf.gc_warn_zgc_threshold = new DurationSpec.IntMillisecondsBound(threshold);
+    }
+
+    public static long getGCPauseWarnThreshold()
+    {
+        return conf.gc_pause_warn_threshold.toMilliseconds();
+    }
+
+    public static void setGCPauseWarnThreshold(long threshold)
+    {
+        conf.gc_pause_warn_threshold = new DurationSpec.IntMillisecondsBound(threshold);
     }
 
     public static int getGCConcurrentPhaseLogThreshold()
@@ -4810,11 +4856,6 @@ public class DatabaseDescriptor
                                                + gcConcurrentPhaseLogThresholdInMs);
 
         conf.gc_concurrent_phase_warn_threshold = new DurationSpec.IntMillisecondsBound(threshold);
-    }
-
-    public static EncryptionContext getEncryptionContext()
-    {
-        return encryptionContext;
     }
 
     public static boolean isCDCEnabled()
