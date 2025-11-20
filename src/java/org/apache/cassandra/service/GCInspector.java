@@ -458,19 +458,16 @@ public class GCInspector implements NotificationListener, GCInspectorMXBean
         }
     }
 
+    /**
+     * While we _technically_ could only set the threshold based on which GC we're running, there's really no
+     * perceptable value-add from doing that. Responsibility for enforcing the validity of the params is entrusted
+     * to the {@link DatabaseDescriptor}
+     */
     @Override
     public void setGcWarnThresholdInMs(long threshold)
     {
-        long gcLogThresholdInMs = getGcLogThresholdInMs();
-        if (threshold < 0)
-            throw new IllegalArgumentException("Threshold must be greater than or equal to 0");
-        if (threshold != 0 && threshold <= gcLogThresholdInMs)
-            throw new IllegalArgumentException("Threshold must be greater than gcLogThresholdInMs which is currently "
-                    + gcLogThresholdInMs);
-        if (threshold > Integer.MAX_VALUE)
-            throw new IllegalArgumentException("Threshold must be less than Integer.MAX_VALUE");
-        DatabaseDescriptor.setZGCWarnThreshold(threshold);
         DatabaseDescriptor.setGCWarnThreshold(threshold);
+        DatabaseDescriptor.setZGCWarnThreshold(threshold);
     }
 
     public long getGcWarnThresholdInMs()
@@ -480,16 +477,8 @@ public class GCInspector implements NotificationListener, GCInspectorMXBean
 
     public void setGcLogThresholdInMs(long threshold)
     {
-        if (threshold <= 0)
-            throw new IllegalArgumentException("Threshold must be greater than 0");
-
-        long gcWarnThresholdInMs = getGcWarnThresholdInMs();
-        if (gcWarnThresholdInMs != 0 && threshold > gcWarnThresholdInMs)
-            throw new IllegalArgumentException("Threshold must be less than gcWarnThresholdInMs which is currently "
-                                               + gcWarnThresholdInMs);
-
-        DatabaseDescriptor.setZGCLogThreshold((int) threshold);
         DatabaseDescriptor.setGCLogThreshold((int) threshold);
+        DatabaseDescriptor.setZGCLogThreshold((int) threshold);
     }
 
     public int getGcConcurrentPhaseWarnThresholdInMs()

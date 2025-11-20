@@ -4747,15 +4747,25 @@ public class DatabaseDescriptor
 
     public static void setGCLogThreshold(int threshold)
     {
-        if (threshold <= 0)
-            throw new IllegalArgumentException("Threshold value for gc_log_threshold must be greater than 0");
-
-        long gcWarnThresholdInMs = getGCWarnThreshold();
-        if (gcWarnThresholdInMs != 0 && threshold > gcWarnThresholdInMs)
-            throw new IllegalArgumentException("Threshold value for gc_log_threshold (" + threshold + ") must be less than gc_warn_threshold which is currently "
-                                               + gcWarnThresholdInMs);
-
+        validateGCParams(threshold, getGCWarnThreshold());
         conf.gc_log_threshold = new DurationSpec.IntMillisecondsBound(threshold);
+    }
+
+    public static void validateGCParams(long logThreshold, long warnThreshold)
+    {
+        if (logThreshold <= 0)
+            throw new IllegalArgumentException("Threshold value for gc_log*_threshold must be greater than 0");
+        if (logThreshold > Integer.MAX_VALUE)
+            throw new IllegalArgumentException("Threshold value for gc_log*_threshold must be less than Integer.MAX_VALUE");
+
+        if (warnThreshold <= 0)
+            throw new IllegalArgumentException("Threshold value for gc_warn*_threshold must be greater than 0");
+        if (warnThreshold > Integer.MAX_VALUE)
+            throw new IllegalArgumentException("Threshold value for gc_warn*_threshold must be less than Integer.MAX_VALUE");
+
+        if (warnThreshold != 0 && logThreshold > warnThreshold)
+            throw new IllegalArgumentException("Threshold value for gc_log*_threshold (" + logThreshold + ") must be less than gc_warn*_threshold which is currently "
+                    + warnThreshold);
     }
 
     public static long getZGCLogThreshold()
@@ -4763,9 +4773,10 @@ public class DatabaseDescriptor
         return conf.gc_log_zgc_threshold.toMilliseconds();
     }
 
-    public static void setZGCLogThreshold(long gcLogThreshold)
+    public static void setZGCLogThreshold(long threshold)
     {
-        conf.gc_log_zgc_threshold = new DurationSpec.IntMillisecondsBound(gcLogThreshold);
+        validateGCParams(threshold, getZGCWarnThreshold());
+        conf.gc_log_zgc_threshold = new DurationSpec.IntMillisecondsBound(threshold);
     }
 
     public static long getGCPauseLogThreshold()
@@ -4794,6 +4805,9 @@ public class DatabaseDescriptor
         if (threshold < 0)
             throw new IllegalArgumentException("Threshold value for gc_warn_threshold must be greater than or equal to 0");
 
+        if (threshold > Integer.MAX_VALUE)
+            throw new IllegalArgumentException("Threshold must be less than Integer.MAX_VALUE");
+
         long gcLogThresholdInMs = getGCLogThreshold();
         if (threshold != 0 && threshold <= gcLogThresholdInMs)
             throw new IllegalArgumentException("Threshold value for gc_warn_threshold (" + threshold + ") must be greater than gc_log_threshold which is currently "
@@ -4809,6 +4823,17 @@ public class DatabaseDescriptor
 
     public static void setZGCWarnThreshold(long threshold)
     {
+        if (threshold < 0)
+            throw new IllegalArgumentException("Threshold value for gc_warn_zgc_threshold must be greater than or equal to 0");
+
+        if (threshold > Integer.MAX_VALUE)
+            throw new IllegalArgumentException("Threshold must be less than Integer.MAX_VALUE");
+
+        long gcLogThresholdInMs = getZGCLogThreshold();
+        if (threshold != 0 && threshold <= gcLogThresholdInMs)
+            throw new IllegalArgumentException("Threshold value for  (" + threshold + ") must be greater than gc_log_zgc_threshold which is currently "
+                    + gcLogThresholdInMs);
+
         conf.gc_warn_zgc_threshold = new DurationSpec.IntMillisecondsBound(threshold);
     }
 
