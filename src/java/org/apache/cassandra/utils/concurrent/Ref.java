@@ -104,6 +104,10 @@ public final class Ref<T> implements RefCounted<T>
     public static final boolean DEBUG_EVENTS_ENABLED = TEST_DEBUG_REF_EVENTS.getBoolean();
     static OnLeak ON_LEAK;
 
+    /** NOT INTENDED FOR USE OUTSIDE TESTS AND DEBUGGING */
+    @VisibleForTesting
+    private static boolean TEST_TRACE_ENABLED = false;
+
     @Shared(scope = SIMULATION)
     public interface OnLeak
     {
@@ -124,6 +128,14 @@ public final class Ref<T> implements RefCounted<T>
         this.state = new State(state, this, referenceQueue);
         this.referent = referent;
     }
+
+    /**
+     * Generally don't go around mutating this willy-nilly in non-test code please.
+     */
+    @VisibleForTesting
+    public static void enableTestTracing() { TEST_TRACE_ENABLED = true; }
+    @VisibleForTesting
+    public static void disableTestTracing() { TEST_TRACE_ENABLED = false; }
 
     /**
      * Must be called exactly once, when the logical operation for which this Ref was created has terminated.
@@ -608,7 +620,7 @@ public final class Ref<T> implements RefCounted<T>
             {
                 if (Thread.currentThread().isInterrupted())
                     throw new UncheckedInterruptedException(new InterruptedException());
-                //If necessary fetch the next object to start tracing
+                // If necessary fetch the next object to start tracing
                 if (inProgress == null)
                     inProgress = path.pollLast();
 
@@ -623,6 +635,25 @@ public final class Ref<T> implements RefCounted<T>
                         iterations++;
                         child = p.left;
                         field = p.right;
+                    }
+
+                    if (TEST_TRACE_ENABLED)
+                    {
+                        logger.debug("[Ref tracing for {}, Object: {}]", rootObject, child);
+                        if (field != null && child != null)
+                        {
+                            logger.debug(" - Visiting field '{}' of object {} -> value class {}",
+                                    field.getName(),
+                                    inProgress.o.getClass().getName(),
+                                    child.getClass().getName());
+                        }
+                        else if (field != null)
+                        {
+                            // Field exists but the next child is null – still useful to know the path.
+                            logger.debug(" - Visiting field '{}' of object {} -> value is null",
+                                    field.getName(),
+                                    inProgress.o.getClass().getName());
+                        }
                     }
 
                     if (child != null && visited.add(child))
