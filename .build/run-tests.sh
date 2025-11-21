@@ -248,10 +248,18 @@ _run_testlist() {
 
     local -r _results_uuid="$(command -v uuidgen >/dev/null 2>&1 && uuidgen || cat /proc/sys/kernel/random/uuid)"
     local failures=0
+    local -r _test_timeout_secs=$((_test_timeout/1000))
     for ((i=0; i < _test_iterations; i++)); do
       [ "${_test_iterations}" -eq 1 ] || printf "–––– run ${i}\n"
       set +o errexit
-      ant "$_testlist_target" -Dtest.classlistprefix="${_target_prefix}" -Dtest.classlistfile=<(echo "${testlist}") -Dtest.timeout="${_test_timeout}" ${ANT_TEST_OPTS}
+      # We wrap this in a kill timeout since we fork for junit tests and OOMs or other hangs can make things pause for
+      # much longer than desired.
+      timeout -k 5m "${_test_timeout_secs}s" \
+        ant "$_testlist_target" \
+        -Dtest.classlistprefix="${_target_prefix}" \
+        -Dtest.classlistfile=<(echo "${testlist}") \
+        -Dtest.timeout="${_test_timeout}" \
+        ${ANT_TEST_OPTS}
       ant_status=$?
       set -o errexit
       if [[ $ant_status -ne 0 ]]; then

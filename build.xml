@@ -411,7 +411,6 @@
       buffer construction (see CASSANDRA-16493)
     -->
     <resources id="_jvm11_test_arg_items">
-        <string>-XX:+CrashOnOutOfMemoryError</string>
         <string>-XX:+HeapDumpOnOutOfMemoryError</string>
         <string>-XX:-CMSClassUnloadingEnabled</string>
         <string>-Dio.netty.tryReflectionSetAccessible=true</string>
@@ -420,7 +419,6 @@
     <pathconvert property="_jvm11_test_arg_items_concat" refid="_jvm11_test_arg_items" pathsep=" "/>
 
     <resources id="_jvm17_test_arg_items">
-        <string>-XX:+CrashOnOutOfMemoryError</string>
         <string>-XX:+HeapDumpOnOutOfMemoryError</string>
         <string>-Dio.netty.tryReflectionSetAccessible=true</string>
         <!-- Open things up so we don't run into any jamm rejections that'd then go unsafe and crash out on in-jvm dtests -->
@@ -430,7 +428,6 @@
     <pathconvert property="_jvm17_test_arg_items_concat" refid="_jvm17_test_arg_items" pathsep=" "/>
 
     <resources id="_jvm21_test_arg_items">
-        <string>-XX:+CrashOnOutOfMemoryError</string>
         <string>-XX:+HeapDumpOnOutOfMemoryError</string>
         <string>-Dnet.bytebuddy.experimental=true</string>
         <string>-Djava.security.manager=allow</string>
