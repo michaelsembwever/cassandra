@@ -68,6 +68,7 @@ pipeline {
   options {
     // must have: avoids agents waste in idle time on controller bottleneck
     durabilityHint('PERFORMANCE_OPTIMIZED')
+    disableResume()
   }
   parameters {
     string(name: 'repository', defaultValue: params.repository ?: scm.userRemoteConfigs[0].url, description: 'Cassandra Repository')
@@ -335,7 +336,7 @@ def build(command, cell) {
   retry(maxAttempts) {
     attempt++
     node(getNodeLabel(command, cell) + nodeExclusion) {
-      nodeExclusion = "&&!${NODE_NAME}"
+      nodeExclusion = nodeExclusion + "&&!${NODE_NAME}"
       withEnv(cell.collect { k, v -> "${k}=${v}" }) {
         ws("workspace/${JOB_NAME}/${BUILD_NUMBER}/${cell.step}/${cell.arch}/jdk-${cell.jdk}") {
           fetchSource(cell.step, cell.arch, cell.jdk)
@@ -372,13 +373,13 @@ def build(command, cell) {
 def test(command, cell) {
   if (command.containsKey('script')) { error("test commands all use `.build/docker/run-tests.sh`") }
   def splits = command.splits ? command.splits : 1
-  def maxAttempts = 2
+  def maxAttempts = 3
   def attempt = 0
   def nodeExclusion = ""
   retry(maxAttempts) {
     attempt++
     node(getNodeLabel(command, cell) + nodeExclusion) {
-      nodeExclusion = "&&!${NODE_NAME}"
+      nodeExclusion = nodeExclusion + "&&!${NODE_NAME}"
       withEnv(cell.collect { k, v -> "${k}=${v}" }) {
         ws("workspace/${JOB_NAME}/${BUILD_NUMBER}/${cell.step}/${cell.arch}/jdk-${cell.jdk}/python-${cell.python}") {
           fetchSource(cell.step, cell.arch, cell.jdk)
@@ -508,7 +509,7 @@ def copyToNightlies(sourceFiles, remoteDirectory='') {
 }
 
 def cleanAgent(job_name) {
-  sh "hostname"
+  sh script: 'hostname; curl -sm 5 ifconfig.me', returnStatus: true
   if (isCanonical()) {
     def agentScriptsUrl = "https://raw.githubusercontent.com/apache/cassandra-builds/trunk/jenkins-dsl/agent_scripts/"
     cleanAgentDocker(job_name, agentScriptsUrl)
