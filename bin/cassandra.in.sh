@@ -114,30 +114,34 @@ if [ -z $JAVA ] ; then
 fi
 
 # Matches variable 'java.supported' in build.xml
-java_versions_supported="11 17 21"
-java_version_string=$(IFS=" "; echo "${java_versions_supported}")
+java_versions_supported=11,17,21
 
 # Determine the sort of JVM we'll be running on.
-JAVA_VERSION=$(java -version 2>&1 | grep '[openjdk|java] version' | cut -d '"' -f2 | cut -d '.' -f1)
+java_ver_output=`"${JAVA:-java}" -version 2>&1`
+jvmver=`echo "$java_ver_output" | grep '[openjdk|java] version' | awk -F'"' 'NR==1 {print $2}' | cut -d\- -f1`
+JVM_VERSION=${jvmver%_*}
+short=$(echo "${jvmver}" | cut -c1-2)
 
-supported=0
-for version in ${java_versions_supported}; do
-  if [ "$version" -eq "$JAVA_VERSION" ]; then
-      supported=1
-  fi
-done
-
-if [ "$supported" -eq 0 ]; then
-  if [ -z "$CASSANDRA_JDK_UNSUPPORTED" ]; then
-    echo "Unsupported Java $JAVA_VERSION. Supported are $java_version_string"
-    echo "If you would like to test with newer Java versions set CASSANDRA_JDK_UNSUPPORTED to any value (for example, CASSANDRA_JDK_UNSUPPORTED=true). Unset the parameter for default behavior"
-    exit 1
-  else
-    echo "######################################################################"
-    echo "Warning! You are using JDK$JAVA_VERSION. This Cassandra version only supports $java_version_string"
-    echo "######################################################################"
-  fi
+# Unsupported JDKs below the upper supported version are not allowed
+if [ "$short" != "$(echo "$java_versions_supported" | cut -d, -f1)" ] && [ "$JVM_VERSION" \< "$(echo "$java_versions_supported" | cut -d, -f2)" ] ; then
+    echo "Unsupported Java $JVM_VERSION. Supported are $java_versions_supported"
+    exit 1;
 fi
+
+# Allow execution of supported Java versions, and newer if CASSANDRA_JDK_UNSUPPORTED is set
+is_supported_version=$(echo "$java_versions_supported" | tr "," '\n' | grep -F -x "$short")
+if [ -z "$is_supported_version" ] ; then
+   if [ -z "$CASSANDRA_JDK_UNSUPPORTED" ] ; then
+        echo "Unsupported Java $JVM_VERSION. Supported are $java_versions_supported"
+        echo "If you would like to test with newer Java versions set CASSANDRA_JDK_UNSUPPORTED to any value (for example, CASSANDRA_JDK_UNSUPPORTED=true). Unset the parameter for default behavior"
+        exit 1;
+    else
+        echo "######################################################################"
+        echo "Warning! You are using JDK$short. This Cassandra version only supports $java_versions_supported."
+        echo "######################################################################"
+    fi
+fi
+JAVA_VERSION=$short
 
 # TODO: Either remove the JVM_VENDOR and JVM_ARCH variables or explain where they're used. Appear vestigial.
 java_ver_output=$("${JAVA:-java}" -version 2>&1)
